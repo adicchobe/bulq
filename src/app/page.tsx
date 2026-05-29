@@ -16,6 +16,10 @@ const PRIMARY_USER: NutritionProfile = {
 const kcal = (n: number) => n.toLocaleString("en-US");
 
 export default function Home() {
+  // ROUTE PROTECTION (deferred): once this page reads the real signed-in user's
+  // profile (Sprint 1C/1E), gate it here — redirect to /login if no session —
+  // or enable the check in src/lib/db/middleware.ts. Safe to stay public now
+  // because it only renders hardcoded, non-private demo data.
   const t = computeNutritionTargets(PRIMARY_USER);
 
   return (
