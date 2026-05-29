@@ -51,3 +51,17 @@ export interface LLMResponse {
   usage: LLMUsage
   toolCalls?: ToolCall[]
 }
+
+/** Payload handed to a stream's onFinish once the full response has streamed. */
+export interface LLMStreamFinish {
+  text: string
+  finishReason: LLMFinishReason
+  usage: LLMUsage
+  provider: LLMProvider
+  model: string
+}
+
+export interface LLMStreamCallbacks {
+  /** Fires once the stream completes — use to persist the full assistant message. */
+  onFinish?: (result: LLMStreamFinish) => void | Promise<void>
+}

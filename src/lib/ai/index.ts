@@ -6,6 +6,8 @@ export type {
   LLMPriority,
   LLMUsage,
   LLMFinishReason,
+  LLMStreamFinish,
+  LLMStreamCallbacks,
   Message,
   MessageRole,
   ToolCall,

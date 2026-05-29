@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getProfile, profileToNutritionProfile } from "@/lib/db/profiles";
@@ -65,7 +66,14 @@ export default async function Home() {
           proof, the formula is just the opening guess.
         </p>
 
-        <form action="/auth/signout" method="post" className="mt-7 text-center">
+        <Link
+          href="/chat"
+          className="mt-7 block rounded-xl bg-[var(--foreground)] px-4 py-3 text-center text-base font-medium text-[var(--background)] transition-opacity hover:opacity-90"
+        >
+          Open chat
+        </Link>
+
+        <form action="/auth/signout" method="post" className="mt-4 text-center">
           <button
             type="submit"
             className="text-sm text-black/40 underline-offset-4 hover:underline dark:text-white/40"

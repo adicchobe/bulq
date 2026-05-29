@@ -1,7 +1,12 @@
 import { generateText, streamText, type CoreMessage } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createAnthropic } from '@ai-sdk/anthropic'
-import type { LLMCallOptions, LLMResponse, LLMProvider } from './types'
+import type {
+  LLMCallOptions,
+  LLMResponse,
+  LLMProvider,
+  LLMStreamCallbacks,
+} from './types'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
@@ -80,8 +85,9 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
  * the client (e.g. `return llmStream(opts).toDataStreamResponse()`). Same
  * provider routing as llmCall: Gemini default, Claude Haiku for high-stakes.
  */
-export function llmStream(options: LLMCallOptions) {
-  const { model } = resolveModel(options.priority)
+export function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
+  const { provider, modelId, model } = resolveModel(options.priority)
+  const onFinish = options.onFinish
 
   return streamText({
     model,
@@ -89,6 +95,23 @@ export function llmStream(options: LLMCallOptions) {
     system: options.system,
     temperature: options.temperature,
     maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+    // Persistence hook — fires when the stream completes, inside the request
+    // lifecycle (reliable on serverless, unlike work-after-return).
+    onFinish: onFinish
+      ? async (event) => {
+          await onFinish({
+            text: event.text,
+            finishReason: event.finishReason,
+            usage: {
+              promptTokens: event.usage.promptTokens,
+              completionTokens: event.usage.completionTokens,
+              totalTokens: event.usage.totalTokens,
+            },
+            provider,
+            model: modelId,
+          })
+        }
+      : undefined,
   })
 }
 
