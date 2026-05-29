@@ -29,10 +29,25 @@ export interface LLMUsage {
   totalTokens: number
 }
 
+/**
+ * Mirrors the Vercel AI SDK's FinishReason union exactly so the adapter can pass
+ * it through without translation. 'length' is the signal that output was cut off
+ * by the token cap — central to detecting the Gemini truncation issue (R11).
+ */
+export type LLMFinishReason =
+  | 'stop'
+  | 'length'
+  | 'content-filter'
+  | 'tool-calls'
+  | 'error'
+  | 'other'
+  | 'unknown'
+
 export interface LLMResponse {
   text: string
   provider: LLMProvider
   model: string
+  finishReason: LLMFinishReason
   usage: LLMUsage
   toolCalls?: ToolCall[]
 }

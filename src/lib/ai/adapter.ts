@@ -1,4 +1,4 @@
-import { generateText, type CoreMessage } from 'ai'
+import { generateText, streamText, type CoreMessage } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import type { LLMCallOptions, LLMResponse, LLMProvider } from './types'
@@ -12,6 +12,16 @@ const GEMINI_MODEL = 'gemini-2.5-flash'
 // real per-call cost numbers in api_usage_log.
 const CLAUDE_HIGH_STAKES_MODEL = 'claude-haiku-4-5-20251001'
 
+// R11 — Gemini 2.5 Flash spends hidden "thinking" tokens that count against
+// maxTokens but aren't surfaced in completionTokens. With a tight cap the
+// visible answer truncates mid-stream (observed in the Sprint 0 smoke test: a
+// 16-token cap returned "P" instead of "PONG"). @ai-sdk/google@0.0.55 exposes
+// NO thinkingConfig/thinkingBudget setting — it predates Gemini 2.5 — so a
+// generous default cap is our only lever. 2048 leaves ample room for thinking
+// plus a full chat reply. Revisit (add a real thinking-budget param) on an
+// @ai-sdk/google upgrade that surfaces it.
+const DEFAULT_MAX_TOKENS = 2048
+
 const gemini = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY,
 })
@@ -24,29 +34,39 @@ function selectProvider(priority: LLMCallOptions['priority']): LLMProvider {
   return priority === 'high_stakes' ? 'anthropic' : 'gemini'
 }
 
-export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
-  const provider = selectProvider(options.priority)
+/** Resolve provider + bound model from the request priority (shared routing). */
+function resolveModel(priority: LLMCallOptions['priority']) {
+  const provider = selectProvider(priority)
   const modelId =
     provider === 'anthropic' ? CLAUDE_HIGH_STAKES_MODEL : GEMINI_MODEL
   const model = provider === 'anthropic' ? anthropic(modelId) : gemini(modelId)
+  return { provider, modelId, model }
+}
 
-  const messages: CoreMessage[] = options.messages.map((m): CoreMessage => ({
-    role: m.role,
-    content: m.content,
-  }))
+function toCoreMessages(messages: LLMCallOptions['messages']): CoreMessage[] {
+  return messages.map((m): CoreMessage => ({ role: m.role, content: m.content }))
+}
+
+/**
+ * Non-streaming call — returns a complete response. Use for the parsing and
+ * structured-output jobs that need the whole result before proceeding.
+ */
+export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
+  const { provider, modelId, model } = resolveModel(options.priority)
 
   const result = await generateText({
     model,
-    messages,
+    messages: toCoreMessages(options.messages),
     system: options.system,
     temperature: options.temperature,
-    maxTokens: options.maxTokens,
+    maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
   })
 
   return {
     text: result.text,
     provider,
     model: modelId,
+    finishReason: result.finishReason,
     usage: {
       promptTokens: result.usage.promptTokens,
       completionTokens: result.usage.completionTokens,
@@ -54,3 +74,22 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
     },
   }
 }
+
+/**
+ * Streaming call — returns the AI SDK stream result. The API route pipes it to
+ * the client (e.g. `return llmStream(opts).toDataStreamResponse()`). Same
+ * provider routing as llmCall: Gemini default, Claude Haiku for high-stakes.
+ */
+export function llmStream(options: LLMCallOptions) {
+  const { model } = resolveModel(options.priority)
+
+  return streamText({
+    model,
+    messages: toCoreMessages(options.messages),
+    system: options.system,
+    temperature: options.temperature,
+    maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+  })
+}
+
+export { DEFAULT_MAX_TOKENS }
