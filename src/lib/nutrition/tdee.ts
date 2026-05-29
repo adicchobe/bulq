@@ -9,6 +9,15 @@ import type {
 /** Default uncertainty band applied to the daily target (§3, pillar #2). */
 export const DEFAULT_UNCERTAINTY_BAND_KCAL = 200
 
+/**
+ * Default surplus/deficit magnitudes and protein target (§15). These are engine
+ * parameters, not stored profile columns: the profile records the *goal*, and
+ * these standard defaults turn that goal into a calorie delta and protein need.
+ */
+export const DEFAULT_SURPLUS_KCAL = 300
+export const DEFAULT_DEFICIT_KCAL = 400
+export const DEFAULT_PROTEIN_PER_KG = 1.8
+
 const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   sedentary: 1.2,
   light: 1.375,

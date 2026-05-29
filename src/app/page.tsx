@@ -1,26 +1,24 @@
-import { computeNutritionTargets, type NutritionProfile } from "@/lib/nutrition";
-
-// HARDCODED for Sprint 1B — replaced by real profile + onboarding in 1C/1E.
-const PRIMARY_USER: NutritionProfile = {
-  sex: "male",
-  ageYears: 26,
-  heightCm: 180,
-  weightKg: 54,
-  activityLevel: "moderate_plus",
-  goalDirection: "gain",
-  ectomorphAdjustmentPct: 7,
-  deltaKcal: 300,
-  proteinPerKg: 1.8,
-};
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/db/server";
+import { getProfile, profileToNutritionProfile } from "@/lib/db/profiles";
+import { computeNutritionTargets } from "@/lib/nutrition";
 
 const kcal = (n: number) => n.toLocaleString("en-US");
 
-export default function Home() {
-  // ROUTE PROTECTION (deferred): once this page reads the real signed-in user's
-  // profile (Sprint 1C/1E), gate it here — redirect to /login if no session —
-  // or enable the check in src/lib/db/middleware.ts. Safe to stay public now
-  // because it only renders hardcoded, non-private demo data.
-  const t = computeNutritionTargets(PRIMARY_USER);
+export default async function Home() {
+  // ROUTE PROTECTION (now active): this page renders the user's real, private
+  // profile data, so it requires a session. No user → /login; signed in but no
+  // profile yet → /onboarding; otherwise compute targets from the saved profile.
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const profile = await getProfile(user.id);
+  if (!profile) redirect("/onboarding");
+
+  const t = computeNutritionTargets(profileToNutritionProfile(profile));
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--background)] px-5 py-12 font-[family-name:var(--font-geist-sans)]">
@@ -66,6 +64,15 @@ export default function Home() {
           weeks Bulq will refine it from your real weight trend — the scale is the
           proof, the formula is just the opening guess.
         </p>
+
+        <form action="/auth/signout" method="post" className="mt-7 text-center">
+          <button
+            type="submit"
+            className="text-sm text-black/40 underline-offset-4 hover:underline dark:text-white/40"
+          >
+            Sign out
+          </button>
+        </form>
       </section>
     </main>
   );
