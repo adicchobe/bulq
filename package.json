@@ -1,0 +1,34 @@
+{
+  "name": "bulq",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "smoke:llm": "tsx --env-file=.env.local scripts/smoke-test-llm.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^0.0.50",
+    "@ai-sdk/google": "^0.0.55",
+    "@supabase/ssr": "^0.5.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "ai": "^3.4.0",
+    "next": "14.2.35",
+    "react": "^18",
+    "react-dom": "^18",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.22.3",
+    "typescript": "^5"
+  }
+}
