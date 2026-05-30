@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
   const result = await llmStream({
     system,
     messages: history,
+    userId: user.id,
+    operation: 'chat',
     // R11: 2048 still truncated chat replies once Gemini's hidden thinking
     // tokens were subtracted. 4096 gives a normal conversational reply ample
     // room to finish (finishReason 'stop', not 'length').

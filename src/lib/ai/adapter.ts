@@ -7,6 +7,7 @@ import type {
   LLMProvider,
   LLMStreamCallbacks,
 } from './types'
+import { logApiUsage } from '@/lib/db/usage'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
@@ -67,6 +68,23 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
     maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
   })
 
+  // Log on success (only when a userId is supplied — keeps user-agnostic calls,
+  // e.g. the smoke test, out of the logging/cookies path). Awaited & fail-safe.
+  if (options.userId) {
+    await logApiUsage({
+      userId: options.userId,
+      provider,
+      model: modelId,
+      priority: options.priority ?? 'standard',
+      operation: options.operation ?? null,
+      promptTokens: result.usage.promptTokens,
+      completionTokens: result.usage.completionTokens,
+      totalTokens: result.usage.totalTokens,
+      finishReason: result.finishReason,
+      success: true,
+    })
+  }
+
   return {
     text: result.text,
     provider,
@@ -95,23 +113,39 @@ export function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
     system: options.system,
     temperature: options.temperature,
     maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-    // Persistence hook — fires when the stream completes, inside the request
-    // lifecycle (reliable on serverless, unlike work-after-return).
-    onFinish: onFinish
-      ? async (event) => {
-          await onFinish({
-            text: event.text,
-            finishReason: event.finishReason,
-            usage: {
-              promptTokens: event.usage.promptTokens,
-              completionTokens: event.usage.completionTokens,
-              totalTokens: event.usage.totalTokens,
-            },
-            provider,
-            model: modelId,
-          })
-        }
-      : undefined,
+    // Fires when the stream completes, inside the request lifecycle (reliable on
+    // serverless, unlike work-after-return). Log usage FIRST (guarded on userId,
+    // awaited & fail-safe), then run the caller's onFinish unchanged. Both run
+    // post-stream, so the streamed tokens are unaffected.
+    onFinish: async (event) => {
+      if (options.userId) {
+        await logApiUsage({
+          userId: options.userId,
+          provider,
+          model: modelId,
+          priority: options.priority ?? 'standard',
+          operation: options.operation ?? null,
+          promptTokens: event.usage.promptTokens,
+          completionTokens: event.usage.completionTokens,
+          totalTokens: event.usage.totalTokens,
+          finishReason: event.finishReason,
+          success: true,
+        })
+      }
+      if (onFinish) {
+        await onFinish({
+          text: event.text,
+          finishReason: event.finishReason,
+          usage: {
+            promptTokens: event.usage.promptTokens,
+            completionTokens: event.usage.completionTokens,
+            totalTokens: event.usage.totalTokens,
+          },
+          provider,
+          model: modelId,
+        })
+      }
+    },
   })
 }
 

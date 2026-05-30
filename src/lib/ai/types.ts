@@ -21,6 +21,10 @@ export interface LLMCallOptions {
   system?: string
   temperature?: number
   maxTokens?: number
+  /** When present, the call is logged to api_usage_log (skipped otherwise). */
+  userId?: string
+  /** Log label for the call: 'chat' | 'parse' | 'reason' | 'compose'. */
+  operation?: string
 }
 
 export interface LLMUsage {
