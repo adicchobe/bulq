@@ -15,6 +15,7 @@ export function buildChatSystemPrompt(
   profile: ProfileRow | null,
   targets: NutritionTargets | null,
   today: TodaySummary | null,
+  nowIst: string | null,
 ): string {
   const lines: string[] = [
     'You are Bulq, a warm but concise nutritional reasoning partner.',
@@ -33,7 +34,10 @@ export function buildChatSystemPrompt(
     '- When reporting the day so far, quote the "Today so far" figures VERBATIM. If it says no meals are logged, then nothing is logged — do NOT estimate calories for foods mentioned earlier in the chat; say it is not logged yet and the user may need to confirm the meal card.',
     '- Suggesting what to eat = name foods from their diet qualitatively and reference the provided remaining range — never attach a fabricated per-food calorie number.',
     '- If you do not know something precisely, say so plainly — "I don\'t know precisely." Never fill a gap with an invented number.',
+    '- You do NOT have timestamps for individual logged meals; never state when a specific meal was eaten. Never state the current time beyond the "Current time" given in this prompt.',
   ]
+
+  if (nowIst) lines.push('', `Current time: ${nowIst}.`)
 
   if (profile && targets) {
     const goalWord =

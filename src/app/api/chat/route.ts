@@ -18,6 +18,7 @@ import {
   assembleMeal,
   buildProposal,
   getTodaySummary,
+  istNowLabel,
   type TodaySummary,
 } from '@/lib/meals'
 
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
     console.error('chat: getTodaySummary failed (day-state omitted)', err)
   }
 
-  const system = buildChatSystemPrompt(profile, targets, today)
+  const system = buildChatSystemPrompt(profile, targets, today, istNowLabel(new Date()))
 
   try {
     const result = await llmStream({

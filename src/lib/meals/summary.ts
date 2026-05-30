@@ -28,6 +28,16 @@ export function istDayRangeUtc(now: Date): { startUtc: Date; endUtc: Date } {
   return { startUtc: new Date(startUtcMs), endUtc: new Date(endUtcMs) }
 }
 
+/** Current time as an IST label for the chat prompt (reuses the IST offset). Pure. */
+export function istNowLabel(now: Date): string {
+  const ist = new Date(now.getTime() + IST_OFFSET_MIN * 60 * 1000)
+  const date = ist.toISOString().slice(0, 10) // IST calendar date (offset already applied)
+  const hh = ist.getUTCHours()
+  const mm = String(ist.getUTCMinutes()).padStart(2, '0')
+  const h12 = ((hh + 11) % 12) + 1
+  return `${date} ${h12}:${mm} ${hh < 12 ? 'am' : 'pm'} IST` // e.g. "2026-05-31 11:34 pm IST"
+}
+
 export interface TodaySummary {
   consumed: {
     kcal_min: number
