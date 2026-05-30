@@ -8,6 +8,7 @@ import type {
   LLMStreamCallbacks,
 } from './types'
 import { logApiUsage } from '@/lib/db/usage'
+import { classifyLlmError } from './errors'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
@@ -60,13 +61,35 @@ function toCoreMessages(messages: LLMCallOptions['messages']): CoreMessage[] {
 export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
   const { provider, modelId, model } = resolveModel(options.priority)
 
-  const result = await generateText({
-    model,
-    messages: toCoreMessages(options.messages),
-    system: options.system,
-    temperature: options.temperature,
-    maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-  })
+  let result
+  try {
+    result = await generateText({
+      model,
+      messages: toCoreMessages(options.messages),
+      system: options.system,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+      maxRetries: 2, // SDK built-in exponential-backoff retry for transient errors
+    })
+  } catch (err) {
+    if (options.userId) {
+      const { errorType } = classifyLlmError(err)
+      await logApiUsage({
+        userId: options.userId,
+        provider,
+        model: modelId,
+        priority: options.priority ?? 'standard',
+        operation: options.operation ?? null,
+        promptTokens: null,
+        completionTokens: null,
+        totalTokens: null,
+        finishReason: null,
+        success: false,
+        errorType,
+      })
+    }
+    throw err // re-throw; failover is the next sub-pass
+  }
 
   // Log on success (only when a userId is supplied — keeps user-agnostic calls,
   // e.g. the smoke test, out of the logging/cookies path). Awaited & fail-safe.
@@ -103,50 +126,74 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
  * the client (e.g. `return llmStream(opts).toDataStreamResponse()`). Same
  * provider routing as llmCall: Gemini default, Claude Haiku for high-stakes.
  */
-export function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
+export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
   const { provider, modelId, model } = resolveModel(options.priority)
   const onFinish = options.onFinish
 
-  return streamText({
-    model,
-    messages: toCoreMessages(options.messages),
-    system: options.system,
-    temperature: options.temperature,
-    maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-    // Fires when the stream completes, inside the request lifecycle (reliable on
-    // serverless, unlike work-after-return). Log usage FIRST (guarded on userId,
-    // awaited & fail-safe), then run the caller's onFinish unchanged. Both run
-    // post-stream, so the streamed tokens are unaffected.
-    onFinish: async (event) => {
-      if (options.userId) {
-        await logApiUsage({
-          userId: options.userId,
-          provider,
-          model: modelId,
-          priority: options.priority ?? 'standard',
-          operation: options.operation ?? null,
-          promptTokens: event.usage.promptTokens,
-          completionTokens: event.usage.completionTokens,
-          totalTokens: event.usage.totalTokens,
-          finishReason: event.finishReason,
-          success: true,
-        })
-      }
-      if (onFinish) {
-        await onFinish({
-          text: event.text,
-          finishReason: event.finishReason,
-          usage: {
+  try {
+    return await streamText({
+      model,
+      messages: toCoreMessages(options.messages),
+      system: options.system,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+      maxRetries: 2, // SDK built-in exponential-backoff retry for transient errors
+      // Fires when the stream completes, inside the request lifecycle (reliable on
+      // serverless, unlike work-after-return). Log usage FIRST (guarded on userId,
+      // awaited & fail-safe), then run the caller's onFinish unchanged. Both run
+      // post-stream, so the streamed tokens are unaffected.
+      onFinish: async (event) => {
+        if (options.userId) {
+          await logApiUsage({
+            userId: options.userId,
+            provider,
+            model: modelId,
+            priority: options.priority ?? 'standard',
+            operation: options.operation ?? null,
             promptTokens: event.usage.promptTokens,
             completionTokens: event.usage.completionTokens,
             totalTokens: event.usage.totalTokens,
-          },
-          provider,
-          model: modelId,
-        })
-      }
-    },
-  })
+            finishReason: event.finishReason,
+            success: true,
+          })
+        }
+        if (onFinish) {
+          await onFinish({
+            text: event.text,
+            finishReason: event.finishReason,
+            usage: {
+              promptTokens: event.usage.promptTokens,
+              completionTokens: event.usage.completionTokens,
+              totalTokens: event.usage.totalTokens,
+            },
+            provider,
+            model: modelId,
+          })
+        }
+      },
+    })
+  } catch (err) {
+    // Captures INITIAL-request failures (incl. retries exhausted on connect):
+    // auth, persistent rate-limit/server errors. Mid-stream failures surface via
+    // the stream, not here — logging those is a later sub-pass.
+    if (options.userId) {
+      const { errorType } = classifyLlmError(err)
+      await logApiUsage({
+        userId: options.userId,
+        provider,
+        model: modelId,
+        priority: options.priority ?? 'standard',
+        operation: options.operation ?? null,
+        promptTokens: null,
+        completionTokens: null,
+        totalTokens: null,
+        finishReason: null,
+        success: false,
+        errorType,
+      })
+    }
+    throw err // re-throw; failover/graceful-degradation are later sub-passes
+  }
 }
 
 export { DEFAULT_MAX_TOKENS }
