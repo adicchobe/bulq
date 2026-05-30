@@ -1,10 +1,30 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useChat, type Message } from 'ai/react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import type { MealProposal } from '@/lib/meals/proposal'
+import { MealProposalCard, type MealCardStatus } from './meal-card'
+import { confirmMeal, rejectMeal } from './actions'
+
+/** Pull a meal proposal off an assistant message's annotations, if present. */
+function getMealProposal(annotations: unknown): MealProposal | null {
+  if (!Array.isArray(annotations)) return null
+  for (const a of annotations) {
+    if (
+      a &&
+      typeof a === 'object' &&
+      'mealId' in a &&
+      'items' in a &&
+      Array.isArray((a as { items: unknown }).items)
+    ) {
+      return a as MealProposal
+    }
+  }
+  return null
+}
 
 export function ChatThread({
   conversationId,
@@ -24,6 +44,17 @@ export function ChatThread({
       message: messages[messages.length - 1]?.content ?? '',
     }),
   })
+
+  // Live-session card state, keyed by mealId (reload-rehydration deferred).
+  const [mealStatus, setMealStatus] = useState<Map<string, MealCardStatus>>(new Map())
+  const handleConfirm = useCallback(async (mealId: string) => {
+    const res = await confirmMeal(mealId)
+    if (res.ok) setMealStatus((prev) => new Map(prev).set(mealId, 'confirmed'))
+  }, [])
+  const handleDismiss = useCallback(async (mealId: string) => {
+    const res = await rejectMeal(mealId)
+    if (res.ok) setMealStatus((prev) => new Map(prev).set(mealId, 'dismissed'))
+  }, [])
 
   const bottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -52,9 +83,23 @@ export function ChatThread({
           </p>
         ) : null}
 
-        {messages.map((m) => (
-          <MessageBubble key={m.id} role={m.role} content={m.content} />
-        ))}
+        {messages.map((m) => {
+          const proposal =
+            m.role === 'assistant' ? getMealProposal(m.annotations) : null
+          return (
+            <div key={m.id} className="flex flex-col gap-2">
+              <MessageBubble role={m.role} content={m.content} />
+              {proposal ? (
+                <MealProposalCard
+                  proposal={proposal}
+                  status={mealStatus.get(proposal.mealId) ?? 'pending'}
+                  onConfirm={() => handleConfirm(proposal.mealId)}
+                  onDismiss={() => handleDismiss(proposal.mealId)}
+                />
+              ) : null}
+            </div>
+          )
+        })}
         <div ref={bottomRef} />
       </div>
 

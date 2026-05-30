@@ -29,6 +29,7 @@ export interface MealProposal {
   kcal_min: number
   kcal_typical: number
   kcal_max: number
+  protein_g: number // meal total — protein is the lean-gain goal's key metric
   mealConfidence: MealConfidence
 }
 
@@ -61,6 +62,7 @@ export function buildProposal(
     kcal_min: totals.kcal_min,
     kcal_typical: totals.kcal_typical,
     kcal_max: totals.kcal_max,
+    protein_g: totals.protein_g,
     mealConfidence: mealInput.confidence ?? 'low',
   }
 }

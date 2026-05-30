@@ -29,8 +29,8 @@ describe('buildProposal', () => {
       note: null,
       confidence: 'medium',
       items: [
-        mealItem({ food_name_raw: 'roti', matched_food_name: 'Chapati / roti', quantity: 3, unit_key: 'chapati', grams_used: 120, kcal_min: 227, kcal_typical: 356, kcal_max: 534 }),
-        mealItem({ food_name_raw: 'dal', matched_food_name: 'Toor dal (cooked)', quantity: 1, unit_key: 'katori_dal', grams_used: 150, kcal_min: 120, kcal_typical: 173, kcal_max: 261 }),
+        mealItem({ food_name_raw: 'roti', matched_food_name: 'Chapati / roti', quantity: 3, unit_key: 'chapati', grams_used: 120, kcal_min: 227, kcal_typical: 356, kcal_max: 534, protein_g: 9.5 }),
+        mealItem({ food_name_raw: 'dal', matched_food_name: 'Toor dal (cooked)', quantity: 1, unit_key: 'katori_dal', grams_used: 150, kcal_min: 120, kcal_typical: 173, kcal_max: 261, protein_g: 11.3 }),
       ],
     }
     const proposal = buildProposal('meal-123', mealInput, ['high', 'medium'])
@@ -52,6 +52,7 @@ describe('buildProposal', () => {
     expect(proposal.kcal_min).toBe(347) // 227 + 120
     expect(proposal.kcal_typical).toBe(529) // 356 + 173
     expect(proposal.kcal_max).toBe(795) // 534 + 261
+    expect(proposal.protein_g).toBeCloseTo(20.8, 5) // 9.5 + 11.3
   })
 
   it('an unknown item (null macros) contributes 0 to the totals; confidence defaults to low if missing', () => {
