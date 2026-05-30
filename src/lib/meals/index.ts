@@ -5,3 +5,10 @@ export { matchFood, normalizeFoodName } from './match'
 export type { FoodMatch } from './match'
 export { pickUnitKey, resolveGrams, computeItemMacros, buildMealItem } from './portion'
 export type { GramsRange, ResolvedPortion, ItemMacros } from './portion'
+export {
+  assembleMeal,
+  assembleMealItems,
+  computeItemConfidence,
+  worstConfidence,
+} from './assemble'
+export type { MealAssembly } from './assemble'
