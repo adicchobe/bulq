@@ -15,8 +15,9 @@ async function setStatus(
   if (!user) return { ok: false }
 
   try {
-    await setMealStatus(user.id, mealId, status) // RLS + user_id scope enforce ownership
-    return { ok: true }
+    // ok ONLY if a row was actually updated (RLS + user_id scope enforce ownership).
+    const updated = await setMealStatus(user.id, mealId, status)
+    return { ok: updated }
   } catch (err) {
     console.error(`setStatus(${status}) failed:`, err)
     return { ok: false }

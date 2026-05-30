@@ -302,17 +302,24 @@ export async function getConfirmedMealsForDay(
   return ((data ?? []) as Record<string, unknown>[]).map(mapMealRow)
 }
 
-/** Update a meal's status (e.g. pending → confirmed / rejected). Throws on error. */
+/**
+ * Update a meal's status (e.g. pending → confirmed / rejected). Returns whether a
+ * row was actually updated — `.select('id')` distinguishes a real persist from a
+ * silent 0-row no-op (wrong id / not owned), so the UI never claims "Logged"
+ * without a real write. Throws only on a real DB error.
+ */
 export async function setMealStatus(
   userId: string,
   mealId: string,
   status: MealStatus,
-): Promise<void> {
+): Promise<boolean> {
   const supabase = createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('meals')
     .update({ status })
     .eq('id', mealId)
     .eq('user_id', userId)
+    .select('id')
   if (error) throw new Error(`setMealStatus failed: ${error.message}`)
+  return (data?.length ?? 0) > 0
 }

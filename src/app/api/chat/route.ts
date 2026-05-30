@@ -13,7 +13,13 @@ import {
   insertMessage,
 } from '@/lib/db/chat'
 import { insertMeal } from '@/lib/db/meals'
-import { classifyMealIntent, assembleMeal, buildProposal } from '@/lib/meals'
+import {
+  classifyMealIntent,
+  assembleMeal,
+  buildProposal,
+  getTodaySummary,
+  type TodaySummary,
+} from '@/lib/meals'
 
 const BodySchema = z.object({
   conversationId: z.string().uuid(),
@@ -98,7 +104,17 @@ export async function POST(request: NextRequest) {
   const targets = profile
     ? computeNutritionTargets(profileToNutritionProfile(profile))
     : null
-  const system = buildChatSystemPrompt(profile, targets)
+
+  // Day-state (today, IST) — fail-safe: a summary read failure must not break Q&A,
+  // so on error we omit the day section rather than 500.
+  let today: TodaySummary | null = null
+  try {
+    today = await getTodaySummary(user.id)
+  } catch (err) {
+    console.error('chat: getTodaySummary failed (day-state omitted)', err)
+  }
+
+  const system = buildChatSystemPrompt(profile, targets, today)
 
   try {
     const result = await llmStream({
