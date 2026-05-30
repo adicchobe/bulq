@@ -280,6 +280,28 @@ export async function getMealById(
   return { ...meal, items }
 }
 
+/**
+ * Confirmed meals with logged_at in [dayStartUtc, dayEndUtc). The caller supplies
+ * the UTC bounds of the desired (IST-local) day. RLS-scoped; throws on real error.
+ */
+export async function getConfirmedMealsForDay(
+  userId: string,
+  dayStartUtc: Date,
+  dayEndUtc: Date,
+): Promise<MealRow[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('meals')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'confirmed')
+    .gte('logged_at', dayStartUtc.toISOString())
+    .lt('logged_at', dayEndUtc.toISOString())
+    .order('logged_at', { ascending: true })
+  if (error) throw new Error(`getConfirmedMealsForDay failed: ${error.message}`)
+  return ((data ?? []) as Record<string, unknown>[]).map(mapMealRow)
+}
+
 /** Update a meal's status (e.g. pending → confirmed / rejected). Throws on error. */
 export async function setMealStatus(
   userId: string,
