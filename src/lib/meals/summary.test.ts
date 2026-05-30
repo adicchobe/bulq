@@ -62,6 +62,20 @@ describe('computeTodaySummary', () => {
     expect(s.target).toEqual(target)
   })
 
+  it('carries a today-only meal list whose length equals mealCount, with raw_texts', () => {
+    const meals = [
+      meal({ raw_text: '2 boiled eggs and a glass of milk', meal_type: 'breakfast', kcal_typical: 280 }),
+      meal({ raw_text: 'a katori of poha', meal_type: 'snack', kcal_typical: 170 }),
+    ]
+    const s = computeTodaySummary(meals, target)
+    expect(s.meals).toHaveLength(s.mealCount)
+    expect(s.meals.map((m) => m.rawText)).toEqual([
+      '2 boiled eggs and a glass of milk',
+      'a katori of poha',
+    ])
+    expect(s.meals[0].mealType).toBe('breakfast')
+  })
+
   it('empty day → zero consumed, remaining = full target', () => {
     const s = computeTodaySummary([], target)
     expect(s.consumed).toEqual({ kcal_min: 0, kcal_typical: 0, kcal_max: 0, protein_g: 0 })

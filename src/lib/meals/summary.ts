@@ -1,6 +1,7 @@
 import {
   getConfirmedMealsForDay,
   type MealRow,
+  type MealType,
 } from '@/lib/db/meals'
 import { getProfile, profileToNutritionProfile } from '@/lib/db/profiles'
 import { computeNutritionTargets } from '@/lib/nutrition'
@@ -38,6 +39,12 @@ export function istNowLabel(now: Date): string {
   return `${date} ${h12}:${mm} ${hh < 12 ? 'am' : 'pm'} IST` // e.g. "2026-05-31 11:34 pm IST"
 }
 
+/** A confirmed meal logged today (IST) — for naming back to the user. No numbers here. */
+export interface TodayMeal {
+  rawText: string | null
+  mealType: MealType | null
+}
+
 export interface TodaySummary {
   consumed: {
     kcal_min: number
@@ -47,6 +54,7 @@ export interface TodaySummary {
   }
   target: { kcal: number; protein_g: number }
   remaining: { kcal_typical: number; protein_g: number }
+  meals: TodayMeal[] // today-only, confirmed, in-window; mealCount === meals.length
   mealCount: number
 }
 
@@ -66,6 +74,11 @@ export function computeTodaySummary(
     consumed.kcal_max += meal.kcal_max ?? 0
     consumed.protein_g += meal.protein_g ?? 0
   }
+  // Same rows getConfirmedMealsForDay already returned — no new query.
+  const todayMeals: TodayMeal[] = meals.map((m) => ({
+    rawText: m.raw_text,
+    mealType: m.meal_type,
+  }))
   return {
     consumed,
     target,
@@ -73,7 +86,8 @@ export function computeTodaySummary(
       kcal_typical: target.kcal - consumed.kcal_typical,
       protein_g: target.protein_g - consumed.protein_g,
     },
-    mealCount: meals.length,
+    meals: todayMeals,
+    mealCount: todayMeals.length, // kept in lockstep with the list
   }
 }
 

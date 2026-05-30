@@ -91,8 +91,13 @@ export function buildChatSystemPrompt(
         `- Logged ${today.mealCount} meal(s); consumed roughly ${fmt(c.kcal_min)}–${fmt(c.kcal_max)} kcal and about ${fmt(c.protein_g)} g protein so far.`,
         `- Against the ~${fmt(tgt.kcal)} kcal / ~${fmt(tgt.protein_g)} g target, that leaves roughly ${fmt(remLow)}–${fmt(remHigh)} kcal and about ${fmt(remProtein)} g protein to go.`,
       )
+      lines.push('- Meals logged today (the exact list):')
+      for (const meal of today.meals) {
+        lines.push(`  • ${meal.rawText ?? '(logged meal)'}`)
+      }
     }
     lines.push(
+      `- The above is the ONLY set of meals logged today (exactly ${today.mealCount}). When the user asks what they have logged, report ONLY these — never list or name meals from earlier in the conversation, even if they appear in the chat history.`,
       '- When advising what to eat next: reason over the PROVIDED ranges above and lean CONSERVATIVE — assume the LOWER end of what they have eaten, so you recommend ENOUGH (a gainer must not fall short of the surplus). Suggest specific foods from their diet qualitatively and lean on the provided remaining range; never invent a per-food calorie/protein number. Never shame.',
     )
   }
