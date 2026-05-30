@@ -8,8 +8,9 @@ import type {
   LLMStreamCallbacks,
   LLMFinishReason,
 } from './types'
-import { logApiUsage } from '@/lib/db/usage'
+import { logApiUsage, getAnthropicSpendUsd } from '@/lib/db/usage'
 import { classifyLlmError, type LlmErrorType } from './errors'
+import { BUDGET_HARD_STOP_USD } from './pricing'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
@@ -85,6 +86,14 @@ function toCoreMessages(messages: LLMCallOptions['messages']): CoreMessage[] {
   return messages.map((m): CoreMessage => ({ role: m.role, content: m.content }))
 }
 
+/**
+ * Budget hard-stop (R3): true once lifetime Claude spend has reached 95% of the
+ * $4.51 balance. Fail-open via getAnthropicSpendUsd (read failure → 0 → false).
+ */
+async function isAnthropicBudgetExhausted(userId: string): Promise<boolean> {
+  return (await getAnthropicSpendUsd(userId)) >= BUDGET_HARD_STOP_USD
+}
+
 /** Common api_usage_log fields, bound to whichever provider/model was used. */
 function logBase(
   userId: string,
@@ -111,8 +120,19 @@ function logBase(
  * reflect whichever provider actually succeeded.
  */
 export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
-  const primary = resolveModel(options.priority)
+  let primary = resolveModel(options.priority)
   const userId = options.userId
+
+  // Budget hard-stop: downgrade a high-stakes PRIMARY to free Gemini rather than
+  // spend more on Claude. (Only reads the budget when the primary is Claude.)
+  if (
+    userId &&
+    primary.provider === 'anthropic' &&
+    (await isAnthropicBudgetExhausted(userId))
+  ) {
+    console.warn('budget hard-stop: routing high_stakes primary to Gemini')
+    primary = resolveByProvider('gemini')
+  }
 
   const attempt = (target: ResolvedModel) =>
     generateText({
@@ -151,6 +171,11 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
     // Failover: real (userId) requests only, transient only, exactly once.
     if (!userId || !transient) throw err
     const alt = resolveFailoverModel(primary.provider)
+    // Budget hard-stop: skip a Claude failover; degrade instead of spending.
+    if (alt.provider === 'anthropic' && (await isAnthropicBudgetExhausted(userId))) {
+      console.warn('budget hard-stop: skipping Claude failover')
+      throw err
+    }
     try {
       result = await attempt(alt)
       target = alt
@@ -193,9 +218,20 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
  * The success log + caller onFinish reflect whichever provider produced the stream.
  */
 export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
-  const primary = resolveModel(options.priority)
+  let primary = resolveModel(options.priority)
   const userId = options.userId
   const callerOnFinish = options.onFinish
+
+  // Budget hard-stop: downgrade a high-stakes PRIMARY to free Gemini rather than
+  // spend more on Claude. (Only reads the budget when the primary is Claude.)
+  if (
+    userId &&
+    primary.provider === 'anthropic' &&
+    (await isAnthropicBudgetExhausted(userId))
+  ) {
+    console.warn('budget hard-stop: routing high_stakes primary to Gemini')
+    primary = resolveByProvider('gemini')
+  }
 
   // Bound to whichever provider/model actually produced the stream. Logs success
   // FIRST (guarded on userId), then runs the caller's onFinish unchanged — both
@@ -274,6 +310,11 @@ export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
     await logFailure(primary, errorType, false)
     if (!userId || !transient) throw err
     const alt = resolveFailoverModel(primary.provider)
+    // Budget hard-stop: skip a Claude failover; degrade instead of spending.
+    if (alt.provider === 'anthropic' && (await isAnthropicBudgetExhausted(userId))) {
+      console.warn('budget hard-stop: skipping Claude failover')
+      throw err
+    }
     try {
       return await attempt(alt, true)
     } catch (err2) {

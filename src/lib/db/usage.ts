@@ -63,3 +63,29 @@ export async function logApiUsage(input: LogApiUsageInput): Promise<void> {
     console.error('logApiUsage threw (swallowed):', err)
   }
 }
+
+/**
+ * Lifetime Anthropic spend for a user (sum of estimated_cost_usd where
+ * provider='anthropic'). FAIL-OPEN: on any read error return 0, so a single
+ * query failure never blocks a call — the runaway-spend case is what the budget
+ * guard protects, and spend keeps being logged regardless. RLS scopes the read.
+ */
+export async function getAnthropicSpendUsd(userId: string): Promise<number> {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('api_usage_log')
+      .select('estimated_cost_usd')
+      .eq('user_id', userId)
+      .eq('provider', 'anthropic')
+    if (error) {
+      console.error(`getAnthropicSpendUsd failed: ${error.message}`)
+      return 0 // fail-open
+    }
+    const rows = (data ?? []) as { estimated_cost_usd: number | string | null }[]
+    return rows.reduce((sum, r) => sum + Number(r.estimated_cost_usd ?? 0), 0)
+  } catch (err) {
+    console.error('getAnthropicSpendUsd threw (swallowed):', err)
+    return 0 // fail-open
+  }
+}
