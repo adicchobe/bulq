@@ -89,3 +89,66 @@ export async function getAnthropicSpendUsd(userId: string): Promise<number> {
     return 0 // fail-open
   }
 }
+
+export interface UsageSummary {
+  anthropicSpendUsd: number // lifetime
+  geminiCalls24h: number // rolling last 24h
+  totalCalls: number // lifetime
+  failures: number // lifetime, success = false
+  failovers: number // lifetime, failed_over = true
+}
+
+/**
+ * Read-only summary for the usage page. FAIL-SAFE: on any error returns zeros
+ * (logged) rather than crashing the page. One RLS-scoped query; aggregates in JS
+ * (single-user row counts are small).
+ */
+export async function getUsageSummary(userId: string): Promise<UsageSummary> {
+  const zero: UsageSummary = {
+    anthropicSpendUsd: 0,
+    geminiCalls24h: 0,
+    totalCalls: 0,
+    failures: 0,
+    failovers: 0,
+  }
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('api_usage_log')
+      .select('provider, success, failed_over, created_at, estimated_cost_usd')
+      .eq('user_id', userId)
+    if (error) {
+      console.error(`getUsageSummary failed: ${error.message}`)
+      return zero
+    }
+
+    const rows = (data ?? []) as {
+      provider: string
+      success: boolean
+      failed_over: boolean
+      created_at: string
+      estimated_cost_usd: number | string | null
+    }[]
+
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    let anthropicSpendUsd = 0
+    let geminiCalls24h = 0
+    let failures = 0
+    let failovers = 0
+    for (const r of rows) {
+      if (r.provider === 'anthropic') {
+        anthropicSpendUsd += Number(r.estimated_cost_usd ?? 0)
+      }
+      if (r.provider === 'gemini' && new Date(r.created_at).getTime() >= cutoff) {
+        geminiCalls24h += 1
+      }
+      if (!r.success) failures += 1
+      if (r.failed_over) failovers += 1
+    }
+
+    return { anthropicSpendUsd, geminiCalls24h, totalCalls: rows.length, failures, failovers }
+  } catch (err) {
+    console.error('getUsageSummary threw (swallowed):', err)
+    return zero
+  }
+}

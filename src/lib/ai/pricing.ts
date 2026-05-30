@@ -62,6 +62,14 @@ export const BUDGET_AMBER_PCT = 0.7
 export const BUDGET_RED_PCT = 0.9
 export const BUDGET_HARD_STOP_PCT = 0.95
 
+/**
+ * Display-only reference for the usage page. Google's free Gemini Flash
+ * requests-per-day varies by account/region and changed Dec 2025 — the
+ * authoritative number is in the user's Google AI Studio console. Used ONLY as
+ * a UI comparison figure; never for gating.
+ */
+export const GEMINI_FREE_RPD_APPROX = 250
+
 /** Dollar thresholds derived from the budget — convenience for the guard. */
 export const BUDGET_AMBER_USD = ANTHROPIC_BUDGET_USD * BUDGET_AMBER_PCT
 export const BUDGET_RED_USD = ANTHROPIC_BUDGET_USD * BUDGET_RED_PCT

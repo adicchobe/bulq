@@ -73,6 +73,13 @@ export default async function Home() {
           Open chat
         </Link>
 
+        <Link
+          href="/usage"
+          className="mt-4 block text-center text-sm text-black/45 underline-offset-4 hover:underline dark:text-white/45"
+        >
+          Usage &amp; budget
+        </Link>
+
         <form action="/auth/signout" method="post" className="mt-4 text-center">
           <button
             type="submit"
