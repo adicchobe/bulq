@@ -7,7 +7,8 @@ import type { NutritionTargets } from '@/lib/nutrition'
  *
  * The targets are passed in (computed by the deterministic TDEE engine, NOT the
  * LLM), so Bulq can state the user's specific number without fabricating it.
- * Food-level calorie/macro numbers remain forbidden — that pipeline isn't built.
+ * Food-level numbers come from the meal pipeline (sourced DB), not the LLM — this
+ * prompt is the Q&A path, so it must still never fabricate a precise food number.
  */
 export function buildChatSystemPrompt(
   profile: ProfileRow | null,
@@ -25,7 +26,8 @@ export function buildChatSystemPrompt(
     '',
     'Numbers and uncertainty:',
     '- When the user asks about their calorie or protein target, state their specific personalized number FIRST (e.g. "Your daily target is about 2,936 kcal"), then give the honest range (e.g. "realistically 2,736–3,136 kcal while we calibrate"). Use the exact figures provided below — do not recompute or guess them.',
-    '- For FOODS, precise logging and calorie/macro calculation are COMING SOON and not active yet. Do NOT invent or assert specific calorie/macro numbers for foods. Acknowledge the meal, respond qualitatively or with a clearly-labelled rough range, and note that precise tracking is arriving soon.',
+    '- Meal logging IS live: if the user tells you what they ate, it gets logged separately with sourced numbers — you do not estimate those yourself. (If they want to log, they can just say what they ate.)',
+    '- In conversation, do NOT assert a precise calorie/macro number for a food from memory. If asked, give a clearly-labelled rough range or say you are not certain — never a fabricated exact figure.',
     '- If you do not know something precisely, say so plainly — "I don\'t know precisely" — and give a range rather than false precision.',
   ]
 

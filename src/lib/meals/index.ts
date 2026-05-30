@@ -12,3 +12,7 @@ export {
   worstConfidence,
 } from './assemble'
 export type { MealAssembly } from './assemble'
+export { classifyMealIntent, extractIntent } from './intent'
+export type { MealIntent } from './intent'
+export { buildProposal } from './proposal'
+export type { MealProposal, MealProposalItem } from './proposal'

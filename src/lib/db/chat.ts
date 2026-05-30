@@ -25,6 +25,7 @@ export interface InsertMessageInput {
   modelUsed?: string | null
   tokensUsed?: number | null
   finishReason?: string | null
+  toolCalls?: Record<string, unknown> | null // e.g. { meal_proposal_id } for reload-rehydration
 }
 
 /**
@@ -95,6 +96,7 @@ export async function insertMessage(input: InsertMessageInput): Promise<void> {
     model_used: input.modelUsed ?? null,
     tokens_used: input.tokensUsed ?? null,
     finish_reason: input.finishReason ?? null,
+    tool_calls: input.toolCalls ?? null,
   })
   if (error) throw new Error(`insertMessage failed: ${error.message}`)
 }

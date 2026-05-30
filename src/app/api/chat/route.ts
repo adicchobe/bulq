@@ -1,8 +1,9 @@
 import { type NextRequest } from 'next/server'
 import { z } from 'zod'
+import type { JSONValue } from 'ai'
 import { createClient } from '@/lib/db/server'
 import { llmStream, type Message } from '@/lib/ai'
-import { dataStreamTextResponse } from '@/lib/ai/data-stream'
+import { dataStreamTextResponse, dataStreamMessageResponse } from '@/lib/ai/data-stream'
 import { buildChatSystemPrompt } from '@/lib/ai/system-prompt'
 import { getProfile, profileToNutritionProfile } from '@/lib/db/profiles'
 import { computeNutritionTargets } from '@/lib/nutrition'
@@ -11,6 +12,8 @@ import {
   getRecentMessages,
   insertMessage,
 } from '@/lib/db/chat'
+import { insertMeal } from '@/lib/db/meals'
+import { classifyMealIntent, assembleMeal, buildProposal } from '@/lib/meals'
 
 const BodySchema = z.object({
   conversationId: z.string().uuid(),
@@ -21,6 +24,8 @@ const BodySchema = z.object({
 // failed, or a permanent error). Calm, no raw error, no fabricated nutrition content.
 const FALLBACK_MESSAGE =
   "I'm having trouble reaching my brain right now — please try again in a moment."
+
+const MEAL_ACK = "Here's what I picked up — does this look right?"
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
@@ -42,6 +47,47 @@ export async function POST(request: NextRequest) {
     content: message,
   })
 
+  // Intent gate: a meal log gets the propose-a-meal path; everything else falls
+  // through to the existing Q&A streaming flow (unchanged). classifyMealIntent is
+  // fail-safe → 'question' on any error.
+  const intent = await classifyMealIntent(user.id, message)
+  if (intent === 'meal_log') {
+    const assembled = await assembleMeal(user.id, message)
+    if (!assembled.ok) {
+      // Classifier said "meal" but we couldn't structure it — calm, honest reply.
+      return dataStreamTextResponse(
+        "I caught that you ate something, but couldn't quite read the foods — mind rephrasing what you had?",
+      )
+    }
+
+    let mealRow
+    try {
+      mealRow = await insertMeal(user.id, assembled.mealInput) // status 'pending'
+    } catch (err) {
+      console.error('chat: insertMeal failed', err)
+      return dataStreamTextResponse(
+        "I couldn't save that meal just now — please try again in a moment.",
+      )
+    }
+
+    const proposal = buildProposal(mealRow.id, assembled.mealInput, assembled.itemConfidences)
+
+    // Persist the ack as an assistant turn; stash the meal id in tool_calls so a
+    // reload can later rehydrate the card (rendering is optional 6b polish).
+    await insertMessage({
+      conversationId,
+      userId: user.id,
+      role: 'assistant',
+      content: MEAL_ACK,
+      toolCalls: { meal_proposal_id: mealRow.id },
+    })
+    await bumpConversationTimestamp(conversationId)
+
+    // Carry the proposal as a message annotation → the client renders the card.
+    return dataStreamMessageResponse(MEAL_ACK, proposal as unknown as JSONValue)
+  }
+
+  // ---- Q&A path (unchanged) ------------------------------------------------
   // Server is the source of truth for history — don't trust the client.
   const recent = await getRecentMessages(conversationId, 15)
   const history: Message[] = recent
