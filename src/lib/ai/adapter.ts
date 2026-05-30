@@ -14,10 +14,11 @@ import { BUDGET_HARD_STOP_USD } from './pricing'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
-// High-stakes PRIMARY: Haiku 4.5 for now. Picked over Sonnet 4.6 because the
-// $4.51 Anthropic balance is the binding constraint during dev. Swap to
-// 'claude-sonnet-4-6' here once we've seen real per-call cost in api_usage_log.
-const CLAUDE_HIGH_STAKES_MODEL = 'claude-haiku-4-5-20251001'
+// High-stakes PRIMARY: Sonnet 4.6 — the reasoning tier for the genuinely hard
+// moments (trend interpretation, contradiction resolution, recalibration
+// explanations). $3/$15 per M (3x Haiku); the budget guard caps spend at 95% of
+// the $4.51 balance. The FAILOVER model stays cheap Haiku (separate constant).
+const CLAUDE_HIGH_STAKES_MODEL = 'claude-sonnet-4-6'
 
 // FAILOVER target model — deliberately a SEPARATE constant from the high-stakes
 // primary. Failover should always use cheap Haiku; keeping it independent means

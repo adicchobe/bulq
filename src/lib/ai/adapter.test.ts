@@ -109,12 +109,12 @@ describe('llmCall budget guard (hard-stop = 95% of $4.51 ≈ $4.2845)', () => {
     expect(logMock).toHaveBeenCalledTimes(1) // only the primary failure row
   })
 
-  it('under hard-stop + high-stakes → uses Claude normally', async () => {
+  it('under hard-stop + high-stakes → uses Claude (Sonnet) normally', async () => {
     spendMock.mockResolvedValue(0) // under
     genMock.mockResolvedValueOnce(ok())
     const res = await llmCall(highStakes)
     expect(res.provider).toBe('anthropic')
-    expect(res.model).toBe('claude-haiku-4-5-20251001')
+    expect(res.model).toBe('claude-sonnet-4-6') // high-stakes PRIMARY = Sonnet 4.6
     expect(genMock).toHaveBeenCalledTimes(1)
   })
 })

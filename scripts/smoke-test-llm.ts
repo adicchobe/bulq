@@ -4,7 +4,7 @@
  *   (tsx --env-file=.env.local scripts/smoke-test-llm.ts)
  *
  * TEST 1 — Gemini 2.5 Flash  (priority 'standard', free tier)
- * TEST 2 — Claude Haiku 4.5  (priority 'high_stakes', burns Anthropic balance)
+ * TEST 2 — Claude Sonnet 4.6 (priority 'high_stakes', burns Anthropic balance)
  * TEST 3 — Gemini longer response, default maxTokens — proves R11 truncation
  *          fix: a multi-item answer comes back complete, finishReason 'stop'.
  */
@@ -74,7 +74,7 @@ async function main() {
   console.log('=== LLM adapter connectivity smoke test ===\n')
   await pong("TEST 1 (Gemini, priority 'standard')", 'standard')
   console.log()
-  await pong("TEST 2 (Claude Haiku, priority 'high_stakes')", 'high_stakes')
+  await pong("TEST 2 (Claude Sonnet 4.6, priority 'high_stakes')", 'high_stakes')
   console.log()
   await longResponse('TEST 3 (Gemini long response — R11 truncation fix)')
 }
