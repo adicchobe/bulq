@@ -33,7 +33,7 @@ export function ChatThread({
   conversationId: string
   initialMessages: Message[]
 }) {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
     api: '/api/chat',
     id: conversationId,
     initialMessages,
@@ -55,6 +55,72 @@ export function ChatThread({
     const res = await rejectMeal(mealId)
     if (res.ok) setMealStatus((prev) => new Map(prev).set(mealId, 'dismissed'))
   }, [])
+
+  // ── Voice input (Web Speech API) — additive; typing is always available. ──
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [listening, setListening] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const baselineRef = useRef('') // input value when listening started (append, don't overwrite)
+  const inputRef = useRef(input)
+  useEffect(() => {
+    inputRef.current = input
+  }, [input])
+
+  useEffect(() => {
+    setVoiceSupported(
+      typeof window !== 'undefined' &&
+        Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition),
+    )
+    return () => recognitionRef.current?.abort() // stop on unmount
+  }, [])
+
+  const startListening = useCallback(() => {
+    const Ctor = window.SpeechRecognition ?? window.webkitSpeechRecognition
+    if (!Ctor) return
+    const rec = new Ctor()
+    rec.lang = 'en-IN'
+    rec.interimResults = true
+    rec.continuous = false // single utterance; auto-finalizes on pause
+    baselineRef.current = inputRef.current
+
+    rec.onresult = (event) => {
+      let interim = ''
+      let final = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        const transcript = result[0].transcript
+        if (result.isFinal) final += transcript
+        else interim += transcript
+      }
+      const base = baselineRef.current
+      const sep = base && !base.endsWith(' ') ? ' ' : ''
+      if (final) {
+        baselineRef.current = base + sep + final // append final to baseline
+        setInput(baselineRef.current)
+      } else {
+        setInput(base + sep + interim) // live interim preview
+      }
+    }
+    rec.onerror = () => setListening(false) // no-speech / not-allowed / network → idle
+    rec.onend = () => {
+      setListening(false)
+      recognitionRef.current = null
+    }
+
+    recognitionRef.current = rec
+    setListening(true)
+    try {
+      rec.start()
+    } catch {
+      setListening(false)
+      recognitionRef.current = null
+    }
+  }, [setInput])
+
+  const toggleListening = useCallback(() => {
+    if (listening) recognitionRef.current?.stop()
+    else startListening()
+  }, [listening, startListening])
 
   const bottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -111,9 +177,25 @@ export function ChatThread({
           <input
             value={input}
             onChange={handleInputChange}
-            placeholder="Message Bulq…"
+            placeholder={listening ? 'Listening…' : 'Message Bulq…'}
             className="flex-1 rounded-xl border border-black/[.12] bg-transparent px-4 py-3 text-base outline-none transition-colors focus:border-black/40 dark:border-white/[.15] dark:focus:border-white/40"
           />
+          {voiceSupported ? (
+            <button
+              type="button"
+              onClick={toggleListening}
+              aria-label={listening ? 'Stop voice input' : 'Start voice input'}
+              aria-pressed={listening}
+              className={`rounded-xl border px-3 py-3 text-base transition-colors ${
+                listening
+                  ? 'animate-pulse border-red-400 bg-red-500/10 text-red-500'
+                  : 'border-black/[.12] text-black/55 hover:bg-black/[.04] dark:border-white/[.15] dark:text-white/55 dark:hover:bg-white/[.06]'
+              }`}
+            >
+              {/* mic glyph */}
+              <span aria-hidden>🎤</span>
+            </button>
+          ) : null}
           <button
             type="submit"
             disabled={isLoading || input.trim().length === 0}
