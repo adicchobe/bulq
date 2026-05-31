@@ -2,7 +2,8 @@ import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import type { JSONValue } from 'ai'
 import { createClient } from '@/lib/db/server'
-import { llmStream, type Message } from '@/lib/ai'
+import { llmStream, checkResponse, type Message } from '@/lib/ai'
+import { logResponseFlags } from '@/lib/db/response-flags'
 import { dataStreamTextResponse, dataStreamMessageResponse } from '@/lib/ai/data-stream'
 import { buildChatSystemPrompt } from '@/lib/ai/system-prompt'
 import { getProfile, profileToNutritionProfile } from '@/lib/db/profiles'
@@ -115,7 +116,35 @@ export async function POST(request: NextRequest) {
     console.error('chat: getTodaySummary failed (day-state omitted)', err)
   }
 
-  const system = buildChatSystemPrompt(profile, targets, today, istNowLabel(new Date()))
+  const nowIst = istNowLabel(new Date())
+  const system = buildChatSystemPrompt(profile, targets, today, nowIst)
+
+  // The nutrition numbers this reply is ALLOWED to state — exactly what the prompt
+  // exposed for this turn (targets incl. range/maintenance/BMR + today's consumed
+  // band + remaining range). Anything else in a nutrition context is "ungrounded".
+  const allowedNutritionNumbers: number[] = []
+  if (targets) {
+    allowedNutritionNumbers.push(
+      targets.dailyTargetKcal,
+      targets.dailyTargetRangeKcal.low,
+      targets.dailyTargetRangeKcal.high,
+      targets.proteinTargetG,
+      targets.maintenanceTDEE,
+      targets.bmr,
+    )
+  }
+  if (today) {
+    const c = today.consumed
+    allowedNutritionNumbers.push(
+      c.kcal_min,
+      c.kcal_typical,
+      c.kcal_max,
+      c.protein_g,
+      today.target.kcal - c.kcal_max, // remaining low
+      today.target.kcal - c.kcal_min, // remaining high
+      today.remaining.protein_g,
+    )
+  }
 
   try {
     const result = await llmStream({
@@ -138,6 +167,25 @@ export async function POST(request: NextRequest) {
           finishReason,
         })
         await bumpConversationTimestamp(conversationId)
+
+        // Anti-hallucination WATCH (2.7): log-only, fail-safe — wrapped so it can
+        // NEVER affect the stream, the reply, or persistence above.
+        try {
+          const facts = { allowedNutritionNumbers, nowIst, path: 'question' as const }
+          const { violations } = checkResponse(text, facts)
+          if (violations.length > 0) {
+            await logResponseFlags({
+              userId: user.id,
+              conversationId,
+              path: 'question',
+              responseExcerpt: text.slice(0, 500),
+              violations,
+              allowedFacts: facts,
+            })
+          }
+        } catch (checkErr) {
+          console.error('anti-hallucination check failed (ignored)', checkErr)
+        }
       },
     })
 
