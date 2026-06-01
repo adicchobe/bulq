@@ -3,7 +3,7 @@
 -- SHARED-REFERENCE data, mirroring the foods/units pattern (§16):
 --   user_id NULL  = system row, readable by ALL authenticated users
 --   user_id set   = (future) a user's own custom chunk
--- Vectors: text-embedding-004 @ 768 dims, manually normalized before insert.
+-- Vectors: gemini-embedding-001 @ 768 dims, manually normalized before insert.
 
 -- 1. Enable pgvector (no-op if already enabled).
 create extension if not exists vector;
