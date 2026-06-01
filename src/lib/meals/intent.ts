@@ -3,20 +3,25 @@ import { llmCall } from '@/lib/ai'
 export type MealIntent = 'meal_log' | 'question'
 
 const INTENT_SYSTEM_PROMPT = `Classify the user's message as exactly one word.
-- "meal_log" — the user is REPORTING food they have eaten or are eating right now (a log of consumption).
-- "question" — anything else: questions, requests for advice/plans, or statements not reporting consumption. When in doubt, choose "question".
+- "meal_log" — the message describes food the user ate, is eating, or just had. This includes bare food lists ("rice dal sabzi") and any cuisine (Indian or not). If food is being reported as consumed, it is meal_log.
+- "question" — a pure question, a request for advice/plans, or a status check — NOT a report of food consumed.
 
 Output ONLY the single word: meal_log OR question. No punctuation, no explanation.
 
 Examples:
 had 3 rotis and a katori of dal → meal_log
-2 boiled eggs and a glass of milk this morning → meal_log
-just had a bowl of poha → meal_log
 ate paneer bhurji for lunch → meal_log
+I just had a burger and fries → meal_log
+burger and coke → meal_log
+2 eggs and a glass of milk → meal_log
+rice dal and sabzi → meal_log
+chicken biryani for dinner → meal_log
+just had a bowl of poha → meal_log
 is dal healthy? → question
 should I have rotis for dinner? → question
 what should I eat to gain weight? → question
 how much protein is in paneer? → question
+how am I doing today? → question
 i'm hungry → question`
 
 /**
@@ -49,11 +54,18 @@ export async function classifyMealIntent(
       priority: 'standard',
       userId,
       operation: 'intent_detect',
-      maxTokens: 8,
+      // R11: Gemini 2.5 Flash spends hidden "thinking" tokens against maxTokens.
+      // A tiny cap (was 8) left ZERO output tokens → the SDK threw on the empty
+      // response → every classify silently fell back to 'question'. 1024 leaves
+      // ample room for thinking + the single word.
+      maxTokens: 1024,
       temperature: 0,
     })
     return extractIntent(res.text)
-  } catch {
+  } catch (err) {
+    // Fail-safe → 'question' (never spuriously propose a meal), but log it so a
+    // classify failure is visible in Vercel logs instead of silently misrouting.
+    console.error('classifyMealIntent failed (defaulting to question):', err)
     return 'question'
   }
 }
