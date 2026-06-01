@@ -2,7 +2,7 @@
 
 > Living document. Canonical context for Claude Code, future Claude.ai sessions, and any AI assistant working on this project. Updated at the end of each major decision point.
 >
-> **Last updated:** END of Sprint 2 — **COMPLETE (v8).** The meal-understanding pipeline is now WIRED & LIVE end-to-end in chat (NL → parse → match → portion → conservative band → worst-item confidence → proposed meal card → Confirm/Dismiss → persist). Day-aware chat is LIVE with **honest, day-state-grounded numbers**, **real injected IST time**, and a **today-meal list grounded in the DB** (not chat history). Anti-fabrication guardrails shipped (calorie + time). Alias coverage fixed (migration 0007, run). **Anti-hallucination post-processor 2.7 is LIVE in WATCH mode** — it logs response violations to `response_flags`, no blocking. Everything deployed to prod. **95 tests passing. NEXT = Sprint 3 (RAG + citations).**
+> **Last updated:** END of Sprint 2 — **COMPLETE (v8).** The meal-understanding pipeline is now WIRED & LIVE end-to-end in chat (NL → parse → match → portion → conservative band → worst-item confidence → proposed meal card → Confirm/Dismiss → persist). Day-aware chat is LIVE with **honest, day-state-grounded numbers**, **real injected IST time**, and a **today-meal list grounded in the DB** (not chat history). Anti-fabrication guardrails shipped (calorie + time). Alias coverage fixed (migration 0007, run). **Anti-hallucination post-processor 2.7 is LIVE in WATCH mode** — it logs response violations to `response_flags`, no blocking. **Sprint 2.8 = voice input (mic button via Web Speech API, en-IN) is LIVE** — meals can be spoken, not just typed. Everything deployed to prod. **95 tests passing. NEXT = Sprint 3 (RAG + citations).**
 
 ---
 
@@ -165,7 +165,9 @@ src/
     onboarding/                 ✅ server guard + pre-filled form + Zod server action
     chat/
       page.tsx                  ✅ server guard
-      chat-thread.tsx           ✅ useChat UI; react-markdown; renders meal-card from message annotations
+      chat-thread.tsx           ✅ useChat UI; react-markdown; renders meal-card from message annotations; **voice mic button (Web Speech API, en-IN, continuous=false, interim preview) → appends transcript to input; feature-detected (hidden if unsupported); no auto-send (2.8)**
+  types/
+    speech-recognition.d.ts     ✅ ambient typed SpeechRecognition/* (no `any`) for the voice feature (2.8)
       meal-card.tsx             ✅ PROPOSED MEAL card (per-item name/qty/grams/kcal-band/confidence dot; total band + protein + confidence; honest note; Confirm/Dismiss → "✓ Logged"/"Dismissed")
       actions.ts                ✅ confirmMeal/rejectMeal server actions (return { ok: updated } — truthful confirm)
     api/chat/route.ts           ✅ intent gate → meal_log path / question path; onFinish persists + logs usage + runs anti-hallucination checkResponse → response_flags
@@ -290,6 +292,7 @@ project_brief.md                ✅ THIS FILE (v8)
     - ✅ 2.5 meal pipeline — engine + WIRED LIVE (parse→match→portion→confidence→propose→confirm)
     - ✅ 2.6 intra-day state — consumed-today read + day-aware chat (honest numbers, real IST time, meal-list grounded in day-state) + anti-fabrication fixes (Fix A truthful confirm, Fix B no-estimation prompt, time injection, list grounding)
     - ✅ 2.7 anti-hallucination post-processor — WATCH mode (checkResponse + response_flags + onFinish wiring)
+    - ✅ 2.8 voice input — mic button via Web Speech API (en-IN); additive, feature-detected, fully typed; meals can be spoken not typed; deployed to prod
   - ⏳ Sprint 3 — Knowledge + Citations (RAG)
   - ⏳ Sprint 4 — Trends + Plans
   - ⏳ Sprint 5 — Polish + Daily use (PWA, prod cache strategy, perf, npm audit, URL rename)
@@ -299,7 +302,7 @@ project_brief.md                ✅ THIS FILE (v8)
 |---|---|---|
 | 0 — Foundations | ✅ DONE | Deployed app, DB, adapter verified |
 | 1 — Profile + TDEE | ✅ DONE | Auth + tables + onboarding + TDEE |
-| 2 — Chat + Meal Logging | ✅ **DONE** | Chat + foods DB + hardened adapter + meal pipeline LIVE + day-aware honest chat + real IST time + alias coverage + anti-hallucination WATCH |
+| 2 — Chat + Meal Logging | ✅ **DONE** | Chat + foods DB + hardened adapter + meal pipeline LIVE + day-aware honest chat + real IST time + alias coverage + anti-hallucination WATCH + voice input (2.8) |
 | 3 — Knowledge + Citations | ⏳ NEXT | RAG pipeline (pgvector, embeddings), sources on claims, [CITE] resolution |
 | 4 — Trends + Plans | ⏳ | Weight logging, trend interpretation, 2-week recalibration, meal plan generator |
 | 5 — Polish + Daily Use | ⏳ | PWA + prod cache/version strategy, perf (meal-turn latency), npm audit, URL rename |
@@ -331,6 +334,10 @@ project_brief.md                ✅ THIS FILE (v8)
 | 30 | **Anti-hallucination ENFORCE mode** — WATCH already flagged a real invented_time slip; tune the time prompt rule and/or escalate the time check from WATCH to ENFORCE (buffer+replace) | NEXT tuning item, informed by response_flags |
 | 31 | **`allowedNutritionNumbers` tuning** — currently includes target range + maintenance + BMR to avoid log floods; narrow to exactly-what-the-prompt-states if the log shows it matters | Tune via response_flags |
 | 32 | **Meal-turn latency 7–10s** (2 sequential Gemini calls) | Track; fix via tool-orchestrator / AI SDK v4 / loading UX |
+| 33 | **Intent misroute on non-Indian / unusual phrasings** — "had a burger and a bowl of milk" classified as `question` (no meal card shown); intent classifier's few-shots are Indian-food-heavy. Add varied few-shots / tune the classifier. | Sprint 3 tuning |
+| 34 | **Western/junk-food coverage** — burger/coke/pizza etc. NOT in the 60-food Indian DB → come back 'unknown' (no estimate); user's real diet includes them. Decide: expand DB with common Western/junk items vs 'llm_inferred' estimation (#26). ⚠️ llm_inferred = LLM estimating calories → pillar #1 tension; only acceptable if low-confidence + clearly labelled "rough, not from our sourced DB." | 🎯 Sprint 3/4 DECISION |
+| 35 | **Mic icon polish** — voice button currently uses a placeholder 🎤 emoji; replace with a proper icon styled to match the chat UI. | Sprint 3 (quick UI) |
+| 36 | **Voice STT engine upgrade path** — currently Web Speech API (en-IN, free, browser-native; solid on Chrome/Android, spotty on iOS Safari, sends audio to browser vendor cloud). If Indian-food-word accuracy or iOS reliability disappoints, upgrade to Groq Whisper (free tier, better accented/domain accuracy, cross-platform). ⚠️ At productization, STT audio to a third party is the same privacy class as the §18/R12 LLM blocker. | Monitor / defer |
 
 ## 23. Risks register
 | # | Risk | Likelihood | Impact | Mitigation |
@@ -363,8 +370,8 @@ project_brief.md                ✅ THIS FILE (v8)
 - **Brief update workflow:** Claude produces the brief file → user downloads → drag-replaces in repo + VS Code → Claude Code commits → user re-uploads to the Claude.ai Project (delete old, upload new).
 
 ## 25. Where we are RIGHT NOW (for a fresh session)
-- **Sprint 2 is COMPLETE and deployed to prod.** What's live: streaming personalized chat; the full meal pipeline wired into chat (NL → proposed meal card → Confirm/Dismiss → persist); day-aware chat with honest day-state-grounded numbers (consumed/remaining as ranges), the real injected IST time, and today's meal list grounded in the DB; anti-fabrication guardrails; alias coverage (0007); and the anti-hallucination post-processor (2.7) in WATCH mode logging violations to `response_flags`.
+- **Sprint 2 (incl. 2.8) is COMPLETE and deployed to prod.** What's live: streaming personalized chat; the full meal pipeline wired into chat (NL → proposed meal card → Confirm/Dismiss → persist); day-aware chat with honest day-state-grounded numbers (consumed/remaining as ranges), the real injected IST time, and today's meal list grounded in the DB; anti-fabrication guardrails; alias coverage (0007); the anti-hallucination post-processor (2.7) in WATCH mode logging violations to `response_flags`; and **voice input (2.8) — a mic button (Web Speech API, en-IN) that fills the chat box so meals can be spoken.**
 - **95 tests passing. tsc clean. All commits pushed; Vercel deployed.** Migrations 0007 + 0008 are RUN in Supabase.
 - **Day-one signal from the watch-net:** it already caught a real `invented_time` slip — the model sometimes ignores the injected time. Tune the time rule / consider ENFORCE for the time check (#30).
 - **IMMEDIATE NEXT = Sprint 3 (RAG + Citations):** pgvector + embeddings (text-embedding-004), knowledge_chunks table, chunk/embed ICMR-NIN + curated sources, retrieval (cosine top-5), and [CITE:chunk_id] resolution so every scientific claim carries a source (pillar #4). Plan before building.
-- **Fast-follow backlog (don't forget):** chicken serving unit (#25); 'llm_inferred' matching (#26); anti-hallucination time-rule tune / ENFORCE (#30); allowedNutritionNumbers tuning (#31); fold 0007 into 0004 seed (#29); prod cache strategy (#28); Vercel prod URL → Supabase redirects (#13); meal-turn latency (#32).
+- **Fast-follow backlog (don't forget):** intent misroute on non-Indian phrasings (#33); Western/junk-food coverage decision — burger/coke etc. (#34, 🎯); mic icon polish (#35); voice engine upgrade path / Groq Whisper (#36); chicken serving unit (#25); 'llm_inferred' matching (#26); anti-hallucination time-rule tune / ENFORCE (#30); allowedNutritionNumbers tuning (#31); fold 0007 into 0004 seed (#29); prod cache strategy (#28); Vercel prod URL → Supabase redirects (#13); meal-turn latency (#32).
