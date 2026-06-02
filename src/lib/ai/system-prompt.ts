@@ -1,6 +1,7 @@
 import type { ProfileRow } from '@/lib/db/profiles'
 import type { NutritionTargets } from '@/lib/nutrition'
 import type { TodaySummary } from '@/lib/meals/summary'
+import type { ChunkResult } from '@/lib/rag/search'
 
 /**
  * Bulq's chat identity + behavioral rules (the §4 pillars as a system prompt),
@@ -16,6 +17,7 @@ export function buildChatSystemPrompt(
   targets: NutritionTargets | null,
   today: TodaySummary | null,
   nowIst: string | null,
+  chunks?: ChunkResult[],
 ): string {
   const lines: string[] = [
     'You are Bulq, a warm but concise nutritional reasoning partner.',
@@ -100,6 +102,23 @@ export function buildChatSystemPrompt(
       `- The above is the ONLY set of meals logged today (exactly ${today.mealCount}). When the user asks what they have logged, report ONLY these — never list or name meals from earlier in the conversation, even if they appear in the chat history.`,
       '- When advising what to eat next: reason over the PROVIDED ranges above and lean CONSERVATIVE — assume the LOWER end of what they have eaten, so you recommend ENOUGH (a gainer must not fall short of the surplus). Suggest specific foods from their diet qualitatively and lean on the provided remaining range; never invent a per-food calorie/protein number. Never shame.',
     )
+  }
+
+  // Sourced references (RAG, 3.5). Only present when retrieval returned chunks;
+  // when empty/undefined the prompt is byte-for-byte unchanged from before.
+  if (chunks && chunks.length > 0) {
+    lines.push(
+      '',
+      'Sourced references:',
+      'Use the sourced references below to answer nutrition and health questions. Cite by naming the source (e.g. \'According to ICMR-NIN Dietary Guidelines (2024)...\'). If the references do not cover the question, say you don\'t have a sourced answer on that — do NOT use your own training knowledge for nutrition claims. You may still answer general conversation, greetings, and non-nutrition questions normally.',
+    )
+    for (const chunk of chunks) {
+      lines.push(
+        '',
+        `[${chunk.source_title}] (${chunk.source_ref})`,
+        chunk.content,
+      )
+    }
   }
 
   return lines.join('\n')

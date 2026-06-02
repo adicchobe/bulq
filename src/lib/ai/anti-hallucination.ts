@@ -11,6 +11,7 @@ export type ViolationType =
   | 'invented_time'
   | 'false_logged'
   | 'shaming'
+  | 'fabricated_source'
 
 export interface Violation {
   type: ViolationType
@@ -23,6 +24,12 @@ export interface CheckFacts {
   /** Current time label (e.g. "2026-05-31 11:34 pm IST"), or null if unknown. */
   nowIst: string | null
   path: 'question' | 'meal_log'
+  /**
+   * Source titles of the RAG chunks retrieved for THIS turn (3.5). When non-empty,
+   * the reply may only cite these; a named source absent from this list is flagged
+   * as fabricated_source. Empty/undefined → check skipped (non-RAG reply).
+   */
+  retrievedSourceTitles?: string[]
 }
 
 // ---- ungrounded nutrition numbers ----------------------------------------
@@ -140,6 +147,55 @@ function checkShaming(text: string, out: Violation[]): void {
   }
 }
 
+// ---- fabricated source (RAG citations, 3.5) -------------------------------
+// Citation lead-ins the model uses to name a source. Group 1 = the claimed source
+// phrase, captured up to the first sentence/clause delimiter. Deliberately narrow
+// (avoids "per day"/"per kg") to keep false positives low — WATCH philosophy.
+const CITATION_RE =
+  /\b(?:according to|as per|per the|source:|summarized from:|citing|as (?:stated|noted) in)\s+([^.,;:\n]+)/gi
+
+// Generic words that don't identify a source. A claimed citation must overlap a
+// retrieved title on something MORE specific than these (e.g. "ICMR-NIN", "Examine").
+const SOURCE_STOPWORDS = new Set([
+  'the', 'and', 'for', 'from', 'with', 'summarized', 'guidelines', 'guide',
+  'dietary', 'nutrition', 'nutritional', 'study', 'studies', 'review', 'reviews',
+  'recommendations', 'recommendation', 'indians', 'indian', 'adults', 'adult',
+  'intake', 'status', 'diet', 'diets', 'health', 'report', 'data', 'database',
+  'edition', 'guideline', 'national', 'official', 'research',
+])
+
+/** Identifying tokens of a source string (drops the "Summarized from:" prefix,
+ *  stopwords, and bare numbers like years). */
+function sourceTokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/summarized from:/g, ' ')
+    .split(/[^a-z0-9-]+/)
+    .filter((t) => t.length >= 3 && !/^\d+$/.test(t) && !SOURCE_STOPWORDS.has(t))
+}
+
+function checkFabricatedSource(
+  text: string,
+  retrievedTitles: string[],
+  out: Violation[],
+): void {
+  // Union of identifying tokens across every retrieved source title.
+  const known = new Set<string>()
+  for (const title of retrievedTitles) {
+    for (const t of sourceTokens(title)) known.add(t)
+  }
+
+  for (const m of Array.from(text.matchAll(CITATION_RE))) {
+    const claimed = m[1].trim()
+    const claimedTokens = sourceTokens(claimed)
+    // No identifying token (e.g. "according to the guidelines") → can't judge; skip.
+    if (claimedTokens.length === 0) continue
+    if (!claimedTokens.some((t) => known.has(t))) {
+      out.push({ type: 'fabricated_source', detail: `"${claimed}" not in retrieved sources` })
+    }
+  }
+}
+
 export function checkResponse(
   text: string,
   facts: CheckFacts,
@@ -149,5 +205,9 @@ export function checkResponse(
   checkInventedTime(text, facts.nowIst, violations)
   if (facts.path === 'question') checkFalseLogged(text, violations)
   checkShaming(text, violations)
+  // Only when chunks were actually retrieved this turn (else skip → no false positives).
+  if (facts.retrievedSourceTitles && facts.retrievedSourceTitles.length > 0) {
+    checkFabricatedSource(text, facts.retrievedSourceTitles, violations)
+  }
   return { violations }
 }

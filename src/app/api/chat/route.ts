@@ -6,6 +6,7 @@ import { llmStream, checkResponse, type Message } from '@/lib/ai'
 import { logResponseFlags } from '@/lib/db/response-flags'
 import { dataStreamTextResponse, dataStreamMessageResponse } from '@/lib/ai/data-stream'
 import { buildChatSystemPrompt } from '@/lib/ai/system-prompt'
+import { searchKnowledge, type ChunkResult } from '@/lib/rag/search'
 import { getProfile, profileToNutritionProfile } from '@/lib/db/profiles'
 import { computeNutritionTargets } from '@/lib/nutrition'
 import {
@@ -116,8 +117,18 @@ export async function POST(request: NextRequest) {
     console.error('chat: getTodaySummary failed (day-state omitted)', err)
   }
 
+  // Sourced retrieval (RAG, 3.5). Fail-safe: a retrieval failure must NEVER break
+  // Q&A, so on error we fall back to an empty list → the prompt behaves exactly as
+  // before (no citations, no crash). Embeds the user's latest message.
+  let chunks: ChunkResult[] = []
+  try {
+    chunks = await searchKnowledge(message)
+  } catch (err) {
+    console.error('chat: searchKnowledge failed (RAG context omitted)', err)
+  }
+
   const nowIst = istNowLabel(new Date())
-  const system = buildChatSystemPrompt(profile, targets, today, nowIst)
+  const system = buildChatSystemPrompt(profile, targets, today, nowIst, chunks)
 
   // The nutrition numbers this reply is ALLOWED to state — exactly what the prompt
   // exposed for this turn (targets incl. range/maintenance/BMR + today's consumed
@@ -171,7 +182,13 @@ export async function POST(request: NextRequest) {
         // Anti-hallucination WATCH (2.7): log-only, fail-safe — wrapped so it can
         // NEVER affect the stream, the reply, or persistence above.
         try {
-          const facts = { allowedNutritionNumbers, nowIst, path: 'question' as const }
+          const facts = {
+            allowedNutritionNumbers,
+            nowIst,
+            path: 'question' as const,
+            // 3.5c: the sources this reply was allowed to cite (empty → check skipped).
+            retrievedSourceTitles: chunks.map((c) => c.source_title),
+          }
           const { violations } = checkResponse(text, facts)
           if (violations.length > 0) {
             await logResponseFlags({

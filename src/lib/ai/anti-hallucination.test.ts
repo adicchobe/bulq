@@ -79,6 +79,37 @@ describe('shaming', () => {
   })
 })
 
+describe('fabricated_source (RAG citations)', () => {
+  const retrieved = [
+    'Summarized from: ICMR-NIN, Dietary Guidelines for Indians (2024)',
+    'Summarized from: Examine.com, Protein Intake guide (citing Morton et al. 2018 meta-analysis)',
+  ]
+  const facts = { ...QUESTION, retrievedSourceTitles: retrieved }
+
+  it('does NOT flag a citation of a real retrieved source', () => {
+    expect(
+      types('According to ICMR-NIN Dietary Guidelines (2024), aim for varied protein.', facts),
+    ).toEqual([])
+    expect(types('As per Examine.com, 1.6 g/kg is plenty.', facts)).toEqual([])
+  })
+
+  it('flags a source NOT in the retrieved list', () => {
+    expect(types('According to the USDA FoodData reference, that holds.', facts)).toEqual([
+      'fabricated_source',
+    ])
+    expect(types('As stated in the Harvard Nutrition Source, eat more.', facts)).toEqual([
+      'fabricated_source',
+    ])
+  })
+
+  it('skips the check entirely when no chunks were retrieved', () => {
+    expect(types('According to the USDA FoodData reference, that holds.', QUESTION)).toEqual([])
+    expect(
+      types('According to the USDA reference.', { ...QUESTION, retrievedSourceTitles: [] }),
+    ).toEqual([])
+  })
+})
+
 describe('clean reply across all checks', () => {
   it('zero violations for a realistic grounded reply', () => {
     const facts = { allowedNutritionNumbers: [2936, 467, 1056, 32, 97], nowIst: '2026-05-31 1:24 am IST', path: 'question' as const }
