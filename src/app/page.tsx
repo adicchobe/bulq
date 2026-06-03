@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getProfile, profileToNutritionProfile } from "@/lib/db/profiles";
+import { getWeightLogs, type WeightLogRow } from "@/lib/db/weight-logs";
 import { computeNutritionTargets } from "@/lib/nutrition";
+import { WeightLog } from "./weight-log";
 
 const kcal = (n: number) => n.toLocaleString("en-US");
 
@@ -20,6 +22,15 @@ export default async function Home() {
   if (!profile) redirect("/onboarding");
 
   const t = computeNutritionTargets(profileToNutritionProfile(profile));
+
+  // Initial weigh-ins for first paint (no loading flash). Fail-safe: a read error
+  // must not 500 the whole dashboard — render with an empty list instead.
+  let initialWeights: WeightLogRow[] = [];
+  try {
+    initialWeights = await getWeightLogs(user.id, 7);
+  } catch (err) {
+    console.error("dashboard: getWeightLogs failed (weight widget empty)", err);
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--background)] px-5 py-12 font-[family-name:var(--font-geist-sans)]">
@@ -65,6 +76,10 @@ export default async function Home() {
           weeks Bulq will refine it from your real weight trend — the scale is the
           proof, the formula is just the opening guess.
         </p>
+
+        <div className="my-7 h-px bg-black/[.07] dark:bg-white/[.1]" />
+
+        <WeightLog initialLogs={initialWeights} />
 
         <Link
           href="/chat"
