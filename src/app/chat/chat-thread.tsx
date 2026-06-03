@@ -212,8 +212,27 @@ export function ChatThread({
                   : 'border-black/[.12] text-black/55 hover:bg-black/[.04] dark:border-white/[.15] dark:text-white/55 dark:hover:bg-white/[.06]'
               }`}
             >
-              {/* mic glyph */}
-              <span aria-hidden>🎤</span>
+              {listening ? (
+                /* stop square — the button itself goes red + animate-pulse */
+                <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+                  <rect x="6" y="6" width="12" height="12" rx="2.5" />
+                </svg>
+              ) : (
+                /* microphone */
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                  aria-hidden
+                >
+                  <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6" />
+                </svg>
+              )}
             </button>
           ) : null}
           <button
