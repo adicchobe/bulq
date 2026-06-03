@@ -79,7 +79,7 @@ export default async function Home() {
 
         <div className="my-7 h-px bg-black/[.07] dark:bg-white/[.1]" />
 
-        <WeightLog initialLogs={initialWeights} />
+        <WeightLog initialLogs={initialWeights} goalDirection={profile.goal_direction} />
 
         <Link
           href="/chat"

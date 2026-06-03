@@ -19,3 +19,12 @@ export type {
   KcalRange,
   NutritionTargets,
 } from './types'
+
+export { rollingAverage, weeklyRateOfChange, interpretTrend } from './trends'
+export type {
+  TrendLog,
+  TrendDirection,
+  TrendStatus,
+  WeeklyRate,
+  TrendInterpretation,
+} from './trends'
