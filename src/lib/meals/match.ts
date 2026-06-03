@@ -60,13 +60,22 @@ export function matchFood(foodNameRaw: string, foods: FoodRow[]): FoodMatch {
   const q = normalizeFoodName(foodNameRaw)
   if (!q) return { food: null, method: 'unknown' }
 
+  // User-owned foods (user_id !== null) take priority over system foods at EVERY
+  // step: a user who taught/corrected a food means it for themselves. Stable
+  // partition (user foods first) — exact/alias are first-match-wins and fuzzy uses
+  // strict `>`, so a user food wins any tie with a system food.
+  const ordered = [
+    ...foods.filter((f) => f.user_id !== null),
+    ...foods.filter((f) => f.user_id === null),
+  ]
+
   // 1. Exact normalized name.
-  for (const f of foods) {
+  for (const f of ordered) {
     if (normalizeFoodName(f.name) === q) return { food: f, method: 'exact' }
   }
 
   // 2. Alias membership (normalized).
-  for (const f of foods) {
+  for (const f of ordered) {
     if (f.aliases.some((a) => normalizeFoodName(a) === q)) {
       return { food: f, method: 'alias' }
     }
@@ -75,7 +84,7 @@ export function matchFood(foodNameRaw: string, foods: FoodRow[]): FoodMatch {
   // 3. Fuzzy — best similarity across name + aliases; only above the high
   //    threshold, else unknown (never force a shaky match).
   let best: { food: FoodRow; score: number } | null = null
-  for (const f of foods) {
+  for (const f of ordered) {
     for (const candidate of [f.name, ...f.aliases]) {
       const score = similarity(q, normalizeFoodName(candidate))
       if (!best || score > best.score) best = { food: f, score }

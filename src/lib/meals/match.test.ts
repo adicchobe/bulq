@@ -66,4 +66,15 @@ describe('matchFood', () => {
     expect(matchFood('  DAL  ', FOODS).food?.name).toBe('Toor dal (cooked)') // case + ws
     expect(matchFood('rotis', FOODS).food?.name).toBe('Chapati / roti') // plural
   })
+
+  it('(f) user food wins over a same-named system food (step 5 priority)', () => {
+    const systemEgg = food({ id: 'sys-egg', name: 'Boiled egg', user_id: null })
+    const userEgg = food({ id: 'user-egg', name: 'Boiled egg', user_id: 'u1', source_type: 'user' })
+
+    // System listed FIRST in the array → without priority it would win on first-match.
+    const m = matchFood('boiled egg', [systemEgg, userEgg])
+    expect(m.method).toBe('exact')
+    expect(m.food?.id).toBe('user-egg')
+    expect(m.food?.user_id).toBe('u1')
+  })
 })
