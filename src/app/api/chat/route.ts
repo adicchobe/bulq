@@ -7,6 +7,8 @@ import { logResponseFlags } from '@/lib/db/response-flags'
 import { dataStreamTextResponse, dataStreamMessageResponse } from '@/lib/ai/data-stream'
 import { buildChatSystemPrompt } from '@/lib/ai/system-prompt'
 import { searchKnowledge, type ChunkResult } from '@/lib/rag/search'
+import { getMatchableFoods } from '@/lib/db/foods'
+import type { AvailableFood } from '@/lib/ai/system-prompt'
 import { getProfile, profileToNutritionProfile } from '@/lib/db/profiles'
 import { computeNutritionTargets } from '@/lib/nutrition'
 import {
@@ -127,8 +129,23 @@ export async function POST(request: NextRequest) {
     console.error('chat: searchKnowledge failed (RAG context omitted)', err)
   }
 
+  // Available foods (4.4) — real per-100g numbers the model may suggest from.
+  // Fail-safe like the RAG fetch: a read error just omits the section, never 500s.
+  let availableFoods: AvailableFood[] = []
+  try {
+    const foods = await getMatchableFoods(user.id)
+    availableFoods = foods.map((f) => ({
+      name: f.name,
+      kcal_typical: f.kcal_typical,
+      protein_g: f.protein_g,
+      category: f.category,
+    }))
+  } catch (err) {
+    console.error('chat: getMatchableFoods failed (food suggestions omitted)', err)
+  }
+
   const nowIst = istNowLabel(new Date())
-  const system = buildChatSystemPrompt(profile, targets, today, nowIst, chunks)
+  const system = buildChatSystemPrompt(profile, targets, today, nowIst, chunks, availableFoods)
 
   // The nutrition numbers this reply is ALLOWED to state — exactly what the prompt
   // exposed for this turn (targets incl. range/maintenance/BMR + today's consumed
@@ -155,6 +172,11 @@ export async function POST(request: NextRequest) {
       today.target.kcal - c.kcal_min, // remaining high
       today.remaining.protein_g,
     )
+  }
+  // 4.4: the real per-100g food numbers the prompt exposed — so a meal suggestion
+  // that quotes them isn't flagged as ungrounded by the WATCH checker.
+  for (const f of availableFoods) {
+    allowedNutritionNumbers.push(f.kcal_typical, f.protein_g)
   }
 
   try {

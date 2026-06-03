@@ -3,6 +3,15 @@ import type { NutritionTargets } from '@/lib/nutrition'
 import type { TodaySummary } from '@/lib/meals/summary'
 import type { ChunkResult } from '@/lib/rag/search'
 
+/** Slim food shape for the "available foods" prompt section — real per-100g
+ *  values from the foods table (system + the user's own taught foods). */
+export interface AvailableFood {
+  name: string
+  kcal_typical: number
+  protein_g: number
+  category: string
+}
+
 /**
  * Bulq's chat identity + behavioral rules (the §4 pillars as a system prompt),
  * personalized with the user's profile and engine-computed targets.
@@ -18,6 +27,7 @@ export function buildChatSystemPrompt(
   today: TodaySummary | null,
   nowIst: string | null,
   chunks?: ChunkResult[],
+  availableFoods?: AvailableFood[],
 ): string {
   const lines: string[] = [
     'You are Bulq, a warm but concise nutritional reasoning partner.',
@@ -100,7 +110,7 @@ export function buildChatSystemPrompt(
     }
     lines.push(
       `- The above is the ONLY set of meals logged today (exactly ${today.mealCount}). When the user asks what they have logged, report ONLY these — never list or name meals from earlier in the conversation, even if they appear in the chat history.`,
-      '- When advising what to eat next: reason over the PROVIDED ranges above and lean CONSERVATIVE — assume the LOWER end of what they have eaten, so you recommend ENOUGH (a gainer must not fall short of the surplus). Suggest specific foods from their diet qualitatively and lean on the provided remaining range; never invent a per-food calorie/protein number. Never shame.',
+      '- When advising what to eat next: reason over the PROVIDED ranges above and lean CONSERVATIVE — assume the LOWER end of what they have eaten, so you recommend ENOUGH (a gainer must not fall short of the surplus). Suggest specific foods from their diet qualitatively and lean on the provided remaining range; never invent calorie/protein numbers — use only the values provided in this prompt (targets, day-state, and available foods list). Never shame.',
     )
   }
 
@@ -119,6 +129,21 @@ export function buildChatSystemPrompt(
         chunk.content,
       )
     }
+  }
+
+  // Available foods (4.4). Real per-100g numbers from the DB (incl. the user's own
+  // taught foods) → the model suggests meals from these instead of fabricating.
+  if (availableFoods && availableFoods.length > 0) {
+    lines.push(
+      '',
+      'Available foods you can suggest (with real per-100g values from the database):',
+    )
+    for (const f of availableFoods) {
+      lines.push(`- ${f.name} — ${f.kcal_typical} kcal, ${f.protein_g} g protein, ${f.category}`)
+    }
+    lines.push(
+      'When suggesting meals, use ONLY foods from this list with their real numbers. Combine them into realistic Indian meals. Account for the user\'s remaining target when suggesting portions.',
+    )
   }
 
   return lines.join('\n')
