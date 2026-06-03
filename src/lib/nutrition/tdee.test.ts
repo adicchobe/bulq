@@ -20,6 +20,7 @@ const PRIMARY_USER: NutritionProfile = {
   ectomorphAdjustmentPct: 7,
   deltaKcal: 300,
   proteinPerKg: 1.8,
+  recalibrationAdjustmentKcal: 0,
 }
 
 // Small tolerance: the brief rounds (~2640, ~2940) while the engine keeps

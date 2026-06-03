@@ -28,3 +28,6 @@ export type {
   WeeklyRate,
   TrendInterpretation,
 } from './trends'
+
+export { recalibrateTdee } from './recalibrate'
+export type { RecalibrateInput, RecalibrateResult } from './recalibrate'

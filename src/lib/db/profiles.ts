@@ -27,6 +27,8 @@ export interface ProfileRow {
   medical_flags: Record<string, unknown>
   sleep_avg_hours: number | null
   kitchen_context: Record<string, unknown>
+  recalibration_adjustment_kcal: number
+  recalibrated_at: string | null
   created_at: string
   updated_at: string
 }
@@ -100,5 +102,28 @@ export function profileToNutritionProfile(row: ProfileRow): NutritionProfile {
     ectomorphAdjustmentPct: Number(row.ectomorph_adjustment_pct),
     deltaKcal,
     proteinPerKg: DEFAULT_PROTEIN_PER_KG,
+    // ?? 0 guards rows read before migration 0012 (column absent → undefined).
+    recalibrationAdjustmentKcal: Number(row.recalibration_adjustment_kcal ?? 0),
   }
+}
+
+/**
+ * Persist the user's running recalibration adjustment (kcal) and stamp
+ * recalibrated_at = now (gates the cooldown). Recalibration ACCUMULATES, so
+ * callers pass the new total (existing + this run's ±step), not the delta. Only
+ * called on a real adjustment. RLS scopes the write; throws on error.
+ */
+export async function setRecalibrationAdjustment(
+  userId: string,
+  totalKcal: number,
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      recalibration_adjustment_kcal: totalKcal,
+      recalibrated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+  if (error) throw new Error(`setRecalibrationAdjustment failed: ${error.message}`)
 }

@@ -28,6 +28,8 @@ export interface NutritionProfile {
   ectomorphAdjustmentPct: number
   deltaKcal: number
   proteinPerKg: number
+  /** Running kcal adjustment from weight-trend recalibration (§15). 0 = none. */
+  recalibrationAdjustmentKcal: number
 }
 
 export interface KcalRange {

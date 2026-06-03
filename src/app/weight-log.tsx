@@ -1,10 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { logWeight, getRecentWeights } from './actions/weight'
+import { useRouter } from 'next/navigation'
+import { logWeight, getRecentWeights, recalibrateTargets } from './actions/weight'
 import type { WeightLogRow } from '@/lib/db/weight-logs'
 import { weeklyRateOfChange, interpretTrend, type TrendStatus } from '@/lib/nutrition'
 import type { GoalDirection } from '@/lib/nutrition'
+
+const MS_PER_DAY = 86_400_000
+
+/** Calendar span (days) the logs cover; 0 if fewer than 2 entries. */
+function spanDays(logs: WeightLogRow[]): number {
+  if (logs.length < 2) return 0
+  const times = logs.map((l) => new Date(l.measured_at ?? l.logged_at).getTime())
+  return (Math.max(...times) - Math.min(...times)) / MS_PER_DAY
+}
 
 /** Today's date as YYYY-MM-DD in the BROWSER's local zone (IST for our user). */
 function todayLocalISO(): string {
@@ -155,6 +165,9 @@ function TrendSummary({
   const goalForInterp = goalDirection === 'gain' ? 'gain' : goalDirection === 'lose' ? 'loss' : null
   const interp = goalForInterp ? interpretTrend(trend, goalForInterp) : null
 
+  // Recalibration needs 14+ days of trend AND a gain/loss goal.
+  const canRecalibrate = goalForInterp !== null && spanDays(logs) >= 14
+
   return (
     <div className="mt-3">
       <p className="text-sm font-medium text-black/70 dark:text-white/70">
@@ -165,6 +178,39 @@ function TrendSummary({
         <p className="mt-1 text-xs leading-relaxed text-black/45 dark:text-white/45">
           {interp.message}
         </p>
+      ) : null}
+      {canRecalibrate ? <Recalibrate /> : null}
+    </div>
+  )
+}
+
+/** Button to recalibrate TDEE from the trend; shows the outcome message. */
+function Recalibrate() {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  const onClick = async () => {
+    setBusy(true)
+    const res = await recalibrateTargets()
+    setResult(res.reason)
+    setBusy(false)
+    // A real adjustment changes the daily target → re-render the dashboard.
+    if (res.adjusted) router.refresh()
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={busy}
+        className="rounded-lg border border-black/[.12] px-3 py-1.5 text-sm font-medium text-black/65 transition-colors hover:bg-black/[.04] disabled:opacity-50 dark:border-white/[.15] dark:text-white/65 dark:hover:bg-white/[.06]"
+      >
+        {busy ? 'Checking…' : 'Recalibrate targets'}
+      </button>
+      {result ? (
+        <p className="mt-2 text-xs leading-relaxed text-black/55 dark:text-white/55">{result}</p>
       ) : null}
     </div>
   )

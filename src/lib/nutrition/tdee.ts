@@ -102,11 +102,12 @@ export function computeNutritionTargets(
 
   const maintenanceTDEE = calculateTDEE(bmr, profile.activityLevel)
 
-  const adjustedTDEE = applyEctomorphAdjustment(
-    maintenanceTDEE,
-    profile.ectomorphAdjustmentPct,
-    profile.goalDirection,
-  )
+  // Ectomorph NEAT bump, then the running recalibration adjustment (§15): the
+  // refined "effective maintenance" once real weight trend has corrected the
+  // formula's guess. Folded into adjustedTDEE so the daily target reflects it.
+  const adjustedTDEE =
+    applyEctomorphAdjustment(maintenanceTDEE, profile.ectomorphAdjustmentPct, profile.goalDirection) +
+    profile.recalibrationAdjustmentKcal
 
   const dailyTargetKcal = calculateDailyTarget(
     adjustedTDEE,
