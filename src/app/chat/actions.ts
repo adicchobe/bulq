@@ -79,7 +79,7 @@ export async function teachFood(input: {
   kcalPerServing?: number
   servingGrams?: number
   mealId?: string
-  mealItemId?: string
+  foodNameRaw?: string
 }): Promise<{ ok: boolean; foodName?: string }> {
   // a. Validate + auth (same shape as setStatus).
   if (!input || typeof input.name !== 'string' || input.name.trim().length === 0) {
@@ -123,11 +123,19 @@ export async function teachFood(input: {
       food = await createUserFood(user.id, foodInput)
     }
 
-    // c. If a specific unknown meal item was referenced, re-derive its macros
-    //    against the now-known food and fix up the meal totals.
-    if (input.mealId && input.mealItemId) {
+    // c. If an unknown meal item was referenced (by raw name), re-derive its
+    //    macros against the now-known food and fix up the meal totals.
+    if (input.mealId && input.foodNameRaw) {
       const meal = await getMealById(user.id, input.mealId)
-      const target = meal?.items.find((it) => it.id === input.mealItemId)
+      const wanted = normalizeFoodName(input.foodNameRaw)
+      // First item whose raw OR matched name matches — regardless of match_method,
+      // so editing a KNOWN item (e.g. correcting boiled egg's protein) updates the
+      // current meal too. First match wins.
+      const target = meal?.items.find(
+        (it) =>
+          normalizeFoodName(it.food_name_raw) === wanted ||
+          (it.matched_food_name != null && normalizeFoodName(it.matched_food_name) === wanted),
+      )
       if (target) {
         const units = await getUnits(user.id)
         const parsed: ParsedItem = {
@@ -137,7 +145,7 @@ export async function teachFood(input: {
         }
         const rebuilt = buildMealItem(parsed, { food, method: 'exact' }, units)
 
-        await updateMealItem(user.id, input.mealItemId, {
+        await updateMealItem(user.id, target.id, {
           food_id: rebuilt.food_id,
           matched_food_name: rebuilt.matched_food_name,
           unit_key: rebuilt.unit_key,

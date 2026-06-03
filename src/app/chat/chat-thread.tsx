@@ -6,8 +6,8 @@ import { useChat, type Message } from 'ai/react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { MealProposal } from '@/lib/meals/proposal'
-import { MealProposalCard, type MealCardStatus } from './meal-card'
-import { confirmMeal, rejectMeal } from './actions'
+import { MealProposalCard, type MealCardStatus, type TeachFormInput } from './meal-card'
+import { confirmMeal, rejectMeal, teachFood } from './actions'
 
 /** Pull a meal proposal off an assistant message's annotations, if present. */
 function getMealProposal(annotations: unknown): MealProposal | null {
@@ -55,6 +55,23 @@ export function ChatThread({
     const res = await rejectMeal(mealId)
     if (res.ok) setMealStatus((prev) => new Map(prev).set(mealId, 'dismissed'))
   }, [])
+
+  // Teach a food from a proposal item. The card handles the optimistic per-item
+  // display on success; we just relay ok/failure so it knows whether to update.
+  const handleTeach = useCallback(
+    async (mealId: string, foodNameRaw: string, input: TeachFormInput): Promise<boolean> => {
+      const res = await teachFood({
+        name: input.name,
+        proteinPerServing: input.proteinPerServing,
+        kcalPerServing: input.kcalPerServing,
+        servingGrams: input.servingGrams,
+        mealId,
+        foodNameRaw,
+      })
+      return res.ok
+    },
+    [],
+  )
 
   // ── Voice input (Web Speech API) — additive; typing is always available. ──
   const [voiceSupported, setVoiceSupported] = useState(false)
@@ -161,6 +178,9 @@ export function ChatThread({
                   status={mealStatus.get(proposal.mealId) ?? 'pending'}
                   onConfirm={() => handleConfirm(proposal.mealId)}
                   onDismiss={() => handleDismiss(proposal.mealId)}
+                  onTeach={(foodNameRaw, input) =>
+                    handleTeach(proposal.mealId, foodNameRaw, input)
+                  }
                 />
               ) : null}
             </div>
