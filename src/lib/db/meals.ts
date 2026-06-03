@@ -98,7 +98,12 @@ export interface MacroTotals {
  * `confidence` (passed separately, worst-item rule) captures that incompleteness.
  * Enforces the invariant: stored meal totals === sum of stored items.
  */
-export function computeMealTotals(items: MealItemInput[]): MacroTotals {
+export function computeMealTotals(
+  items: Pick<
+    MealItemInput,
+    'kcal_min' | 'kcal_typical' | 'kcal_max' | 'protein_g' | 'fat_g' | 'carb_g' | 'fiber_g'
+  >[],
+): MacroTotals {
   const total: MacroTotals = {
     kcal_min: 0,
     kcal_typical: 0,
@@ -321,5 +326,72 @@ export async function setMealStatus(
     .eq('user_id', userId)
     .select('id')
   if (error) throw new Error(`setMealStatus failed: ${error.message}`)
+  return (data?.length ?? 0) > 0
+}
+
+/** Fields of a meal_items row that can be patched after creation (e.g. once an
+ *  unknown item is resolved by teaching its food). */
+export interface MealItemUpdate {
+  food_id?: string | null
+  matched_food_name?: string | null
+  unit_key?: string | null
+  grams_used?: number | null
+  match_method?: MatchMethod | null
+  kcal_min?: number | null
+  kcal_typical?: number | null
+  kcal_max?: number | null
+  protein_g?: number | null
+  fat_g?: number | null
+  carb_g?: number | null
+  fiber_g?: number | null
+}
+
+/**
+ * Patch a single meal_items row, scoped to user_id (RLS + explicit). Returns
+ * whether a row was actually updated (via `.select('id')`). Does NOT touch the
+ * parent meal's stored totals — call recomputeMealTotals after to keep the
+ * invariant (meal totals === sum of items).
+ */
+export async function updateMealItem(
+  userId: string,
+  itemId: string,
+  updates: MealItemUpdate,
+): Promise<boolean> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('meal_items')
+    .update(updates)
+    .eq('id', itemId)
+    .eq('user_id', userId)
+    .select('id')
+  if (error) throw new Error(`updateMealItem failed: ${error.message}`)
+  return (data?.length ?? 0) > 0
+}
+
+/**
+ * Recompute a meal's stored totals from its current items and write them back,
+ * preserving the invariant (meal totals === sum of items). Use after editing an
+ * item's macros. Scoped to user_id; returns whether the meal row was updated.
+ */
+export async function recomputeMealTotals(userId: string, mealId: string): Promise<boolean> {
+  const supabase = createClient()
+
+  const { data: itemData, error: itemError } = await supabase
+    .from('meal_items')
+    .select('*')
+    .eq('meal_id', mealId)
+    .eq('user_id', userId)
+  if (itemError) throw new Error(`recomputeMealTotals: items fetch failed: ${itemError.message}`)
+
+  const items = (itemData ?? []).map((row) => mapMealItemRow(row as Record<string, unknown>))
+  const totals = computeMealTotals(items)
+
+  const { data, error } = await supabase
+    .from('meals')
+    .update(totals)
+    .eq('id', mealId)
+    .eq('user_id', userId)
+    .select('id')
+  if (error) throw new Error(`recomputeMealTotals: meal update failed: ${error.message}`)
   return (data?.length ?? 0) > 0
 }
