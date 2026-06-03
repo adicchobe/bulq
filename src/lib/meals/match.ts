@@ -44,7 +44,7 @@ function levenshtein(a: string, b: string): number {
 }
 
 /** Normalized similarity in [0,1]: 1 = identical, 0 = nothing in common. */
-function similarity(a: string, b: string): number {
+export function similarity(a: string, b: string): number {
   if (a === b) return 1
   const maxLen = Math.max(a.length, b.length)
   if (maxLen === 0) return 1
