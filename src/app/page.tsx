@@ -103,6 +103,11 @@ export default async function Home() {
             Sign out
           </button>
         </form>
+
+        {/* Build stamp — confirm which deploy is live without checking Vercel. */}
+        <p className="mt-6 text-center text-[11px] tabular-nums text-black/30 dark:text-white/30">
+          v.{process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}
+        </p>
       </section>
     </main>
   );
