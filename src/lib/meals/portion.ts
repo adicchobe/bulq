@@ -68,7 +68,7 @@ export function pickUnitKey(food: FoodRow, unitRaw: string | null): string | nul
     else if (nameHas(food, 'paneer')) key = 'paneer_serving'
   } else if (cat === 'non_veg') {
     if (nameHas(food, 'egg')) key = 'egg_large'
-    // chicken etc. → null (fallback; logged by weight, no household unit)
+    else if (nameHas(food, 'chicken')) key = 'chicken_piece' // 1 piece ≈ 100g (units seed)
   } else if (cat === 'supplement') {
     if (nameHas(food, 'whey')) key = 'scoop_whey'
     else if (nameHas(food, 'chia')) key = 'tbsp_chia'

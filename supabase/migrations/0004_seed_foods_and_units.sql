@@ -18,10 +18,10 @@ insert into public.foods
    source_type, source_ref, notes)
 values
   (NULL, 'Whole wheat flour (atta)', ARRAY['atta', 'wheat flour', 'gehu atta']::text[], 'grain', 'raw', 'raw_ingredient', 341, 307, 375, 12.1, 1.7, 69.4, 11.2, 'IFCT2017', 'A019 (wheat flour, whole)', NULL),
-  (NULL, 'Chapati / roti (whole wheat)', ARRAY['roti', 'phulka', 'chapatti', 'chapathi']::text[], 'grain', 'cooked', 'cooked_single', 297, 252, 356, 7.9, 7.5, 46.0, 4.9, 'USDA', '174075 (bread, chapati/roti, whole wheat)', 'Commercial value; a plain home phulka with no ghee is ~10-15% lower in kcal & fat. Band covers this.'),
+  (NULL, 'Chapati / roti (whole wheat)', ARRAY['roti', 'phulka', 'chapati', 'chapatti', 'chapathi']::text[], 'grain', 'cooked', 'cooked_single', 297, 252, 356, 7.9, 7.5, 46.0, 4.9, 'USDA', '174075 (bread, chapati/roti, whole wheat)', 'Commercial value; a plain home phulka with no ghee is ~10-15% lower in kcal & fat. Band covers this.'),
   (NULL, 'Plain paratha', ARRAY['parantha', 'paratha plain']::text[], 'grain', 'cooked', 'composite', 320, 240, 432, 6.4, 13.2, 45.4, 9.6, 'USDA', '171307 (paratha)', 'Pan-fried in ~1 tsp oil.'),
   (NULL, 'Raw white rice', ARRAY['chawal', 'raw rice', 'uncooked rice']::text[], 'grain', 'raw', 'raw_ingredient', 360, 324, 396, 6.8, 0.5, 78.2, 0.2, 'IFCT2017', 'rice, raw, milled', NULL),
-  (NULL, 'Cooked white rice', ARRAY['cooked rice', 'steamed rice', 'bhaat', 'chawal cooked']::text[], 'grain', 'cooked', 'cooked_single', 130, 110, 156, 2.7, 0.3, 28.2, 0.4, 'USDA', '168878 (rice, white, long-grain, cooked)', NULL),
+  (NULL, 'Cooked white rice', ARRAY['rice', 'cooked rice', 'steamed rice', 'bhaat', 'chawal cooked']::text[], 'grain', 'cooked', 'cooked_single', 130, 110, 156, 2.7, 0.3, 28.2, 0.4, 'USDA', '168878 (rice, white, long-grain, cooked)', NULL),
   (NULL, 'Vegetable biryani', ARRAY['veg biryani', 'biryani']::text[], 'grain', 'cooked', 'composite', 170, 150, 230, 4.5, 7.5, 26.0, 2.0, 'INDB', 'INDB recipe (vegetable biryani)', 'Home-style ~1 tsp ghee/katori; restaurant versions run higher (toward the max).'),
   (NULL, 'Vegetable pulao', ARRAY['pulav', 'veg pulao', 'pulao']::text[], 'grain', 'cooked', 'composite', 155, 140, 200, 4.0, 6.0, 24.5, 2.0, 'INDB', 'INDB recipe (vegetable pulao)', NULL),
   (NULL, 'Poha', ARRAY['kanda poha', 'pohe', 'poha']::text[], 'grain', 'cooked', 'composite', 170, 150, 205, 3.0, 5.0, 28.5, 1.2, 'derived', 'INDB / Indian recipe DBs (cooked kanda poha)', 'With ~1 tsp oil + peanuts.'),
@@ -41,7 +41,7 @@ values
   (NULL, 'Kabuli chana (dry)', ARRAY['chickpea', 'kabuli chana', 'safed chana', 'white chana']::text[], 'dal_legume', 'raw', 'raw_ingredient', 378, 340, 416, 20.5, 6.0, 63.0, 12.2, 'USDA', '173756 (chickpeas, raw)', NULL),
   (NULL, 'Chole (chickpea curry)', ARRAY['chole', 'chana masala', 'chhole']::text[], 'dal_legume', 'cooked', 'composite', 145, 110, 195, 8.0, 6.0, 18.0, 6.0, 'INDB', 'INDB recipe (chole)', 'Home-style.'),
   (NULL, 'Kala chana (dry)', ARRAY['black chickpea', 'kala chana dry']::text[], 'dal_legume', 'raw', 'raw_ingredient', 359, 323, 395, 18.0, 5.3, 60.0, 13.0, 'IFCT2017', 'B008 (black chickpea)', 'Verify exact value in IFCT PDF.'),
-  (NULL, 'Boiled kala chana (snack)', ARRAY['boiled chana', 'kala chana boiled', 'boiled black chana']::text[], 'dal_legume', 'cooked', 'cooked_single', 164, 139, 197, 8.9, 2.6, 27.4, 7.6, 'USDA', '173757 (chickpeas, boiled)', 'Salt/lemon only. NOTE: this is COOKED weight (~9g protein/100g), not dry.'),
+  (NULL, 'Boiled kala chana (snack)', ARRAY['chana', 'boiled chana', 'kala chana boiled', 'boiled black chana']::text[], 'dal_legume', 'cooked', 'cooked_single', 164, 139, 197, 8.9, 2.6, 27.4, 7.6, 'USDA', '173757 (chickpeas, boiled)', 'Salt/lemon only. NOTE: this is COOKED weight (~9g protein/100g), not dry.'),
   (NULL, 'Soybean (dry)', ARRAY['soybean', 'soya bean']::text[], 'dal_legume', 'raw', 'raw_ingredient', 446, 401, 491, 36.5, 19.9, 30.2, 9.3, 'USDA', '174270 (soybeans, raw)', NULL),
   (NULL, 'Soya chunks (dry)', ARRAY['soya chunks', 'nutrela', 'meal maker', 'soy nuggets', 'soya nuggets']::text[], 'supplement', 'raw', 'raw_ingredient', 347, 312, 382, 53.0, 0.5, 33.0, 13.0, 'brand_label', 'Nutrela label (dry TVP)', 'Very high protein per 100g dry.'),
   (NULL, 'Soya chunk curry (cooked)', ARRAY['soya curry', 'soya chunk sabzi', 'soya sabzi']::text[], 'dal_legume', 'cooked', 'composite', 155, 120, 210, 16.0, 6.0, 10.0, 4.0, 'derived', 'INDB + soya chunk composition', 'Cooked; very high protein per 100g.'),
@@ -68,8 +68,8 @@ values
   (NULL, 'Bhindi sabzi', ARRAY['bhindi sabzi', 'bhindi masala']::text[], 'vegetable', 'cooked', 'composite', 85, 65, 95, 2.5, 5.0, 8.0, 3.5, 'INDB', 'INDB / NutriScan (bhindi sabzi)', 'Sauteed, ~1 tsp oil.'),
   (NULL, 'Chicken breast (raw)', ARRAY['chicken breast raw', 'raw chicken']::text[], 'non_veg', 'raw', 'raw_ingredient', 120, 108, 132, 22.5, 2.6, 0.0, 0.0, 'USDA', '171477 (chicken breast, raw, skinless)', NULL),
   (NULL, 'Chicken breast (cooked)', ARRAY['chicken breast', 'cooked chicken', 'grilled chicken', 'chicken', 'roasted chicken']::text[], 'non_veg', 'cooked', 'cooked_single', 165, 148, 198, 31.0, 3.6, 0.0, 0.0, 'USDA', '171534 (chicken breast, roasted, skinless)', 'COOKED weight. ~150g raw cooks down to ~110g. Gold-standard lean protein.'),
-  (NULL, 'Egg, whole (raw)', ARRAY['egg raw', 'anda', 'raw egg']::text[], 'non_veg', 'raw', 'raw_ingredient', 143, 129, 157, 12.6, 9.5, 0.7, 0.0, 'USDA', '171287 (egg, whole, raw)', NULL),
-  (NULL, 'Boiled egg (whole)', ARRAY['boiled egg', 'uble ande', 'hard boiled egg', 'ubla anda']::text[], 'non_veg', 'cooked', 'cooked_single', 155, 139, 186, 12.6, 10.6, 1.1, 0.0, 'USDA', '173424 (egg, whole, hard-boiled)', 'Per 100g. One large egg (~50g) is about 78 kcal / 6.3g protein.'),
+  (NULL, 'Egg, whole (raw)', ARRAY['egg raw', 'raw egg']::text[], 'non_veg', 'raw', 'raw_ingredient', 143, 129, 157, 12.6, 9.5, 0.7, 0.0, 'USDA', '171287 (egg, whole, raw)', NULL),
+  (NULL, 'Boiled egg (whole)', ARRAY['boiled egg', 'egg', 'eggs', 'boiled eggs', 'ande', 'anda', 'uble ande', 'hard boiled egg', 'ubla anda']::text[], 'non_veg', 'cooked', 'cooked_single', 155, 139, 186, 12.6, 10.6, 1.1, 0.0, 'USDA', '173424 (egg, whole, hard-boiled)', 'Per 100g. One large egg (~50g) is about 78 kcal / 6.3g protein.'),
   (NULL, 'Whey protein (concentrate)', ARRAY['whey', 'whey protein', 'protein powder', 'whey concentrate']::text[], 'supplement', 'raw', 'raw_ingredient', 400, 360, 440, 80.0, 5.0, 10.0, 0.0, 'brand_label', 'Aggregate of major Indian brands', 'Per 100g. One ~30g scoop is roughly 120 kcal / 24g protein. Read your tub''s label.'),
   (NULL, 'Chia seeds (dry)', ARRAY['chia', 'chia seeds']::text[], 'supplement', 'raw', 'raw_ingredient', 486, 437, 535, 16.5, 30.7, 42.1, 34.4, 'USDA', '170554 (chia seeds, dried)', 'Not in IFCT 2017; USDA is the source.'),
   (NULL, 'Mixed raw salad', ARRAY['salad', 'mixed salad', 'kachumber', 'green salad']::text[], 'vegetable', 'raw', 'raw_ingredient', 30, 27, 33, 1.2, 0.3, 6.0, 2.0, 'derived', 'USDA raw-veg average (cucumber/tomato/onion/carrot)', 'No dressing.'),
@@ -96,4 +96,5 @@ values
   (NULL, 'banana_medium', '1 medium banana', 110, 80, 150, 'ICMR My Plate (100g fruit)', NULL),
   (NULL, 'glass_milk', '1 glass milk', 200, 150, 250, 'ICMR My Plate (300ml/day)', NULL),
   (NULL, 'cup_curd', '1 cup curd', 150, 100, 200, 'Standard katori', NULL),
-  (NULL, 'cup_chai', '1 cup chai', 150, 100, 200, 'Indian refs', 'Cutting chai 100ml; mug 200ml.');
+  (NULL, 'cup_chai', '1 cup chai', 150, 100, 200, 'Indian refs', 'Cutting chai 100ml; mug 200ml.'),
+  (NULL, 'chicken_piece', '1 piece of chicken', 100, 80, 150, 'Indian refs (boneless serving piece)', 'One serving piece; chicken is otherwise logged by weight.');

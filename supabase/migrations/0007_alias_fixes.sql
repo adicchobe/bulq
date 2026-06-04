@@ -1,49 +1,15 @@
--- Migration 0007 — alias coverage fixes (bare-token gaps found in the matchFood audit)
+-- Migration 0007 — alias coverage fixes (bare-token gaps from the matchFood audit)
 --
--- Bare tokens "egg/eggs/ande", "rice", "chana", "chapati" failed to match (or only
--- fuzzy-matched). These UPDATEs add the missing aliases on the right system rows.
+-- FOLDED INTO 0004 (#29): these alias updates now live directly in the 0004 seed
+-- values, so a FRESH database needs only 0004 (its delete+re-insert no longer wipes
+-- them). This file is intentionally a NO-OP, kept so Supabase's applied-migration
+-- history (tracked by filename) stays intact — do NOT delete it.
 --
--- Idempotent / re-runnable: each UPDATE rebuilds aliases as a deduplicated set
--- (array(select distinct unnest(...))), so re-running adds no duplicates. System
--- rows only (user_id IS NULL). Run in the Supabase SQL editor.
---
--- NOTE: 0004 (seed) deletes + re-inserts system rows on re-run, which would wipe
--- these aliases — re-apply 0007 after any 0004 re-run (or fold these into 0004 later).
+-- For the record, 0007 previously made these changes (now in 0004):
+--   • Boiled egg (whole): + 'egg','eggs','boiled eggs','ande','anda'
+--   • Egg, whole (raw):   − 'anda' (so bare egg terms resolve to boiled, not raw)
+--   • Cooked white rice:  + 'rice'
+--   • Boiled kala chana:  + 'chana'
+--   • Chapati / roti:     + 'chapati'
 
--- Boiled egg (whole): bare egg terms → boiled (the eaten form, not raw).
-update public.foods
-set aliases = array(
-  select distinct unnest(aliases || array['egg', 'eggs', 'boiled eggs', 'ande', 'anda']::text[])
-)
-where user_id is null and name = 'Boiled egg (whole)';
-
--- Egg, whole (raw): REMOVE 'anda' so bare egg terms resolve to boiled, not raw.
--- (Keep 'egg raw' and 'raw egg'.)
-update public.foods
-set aliases = array(
-  select distinct unnest(aliases)
-  except
-  select unnest(array['anda']::text[])
-)
-where user_id is null and name = 'Egg, whole (raw)';
-
--- Cooked white rice: bare 'rice' → cooked.
-update public.foods
-set aliases = array(
-  select distinct unnest(aliases || array['rice']::text[])
-)
-where user_id is null and name = 'Cooked white rice';
-
--- Boiled kala chana (snack): bare 'chana' → his actual snack (§3).
-update public.foods
-set aliases = array(
-  select distinct unnest(aliases || array['chana']::text[])
-)
-where user_id is null and name = 'Boiled kala chana (snack)';
-
--- Chapati / roti: explicit 'chapati' alias (was only matching via fuzzy ~0.875).
-update public.foods
-set aliases = array(
-  select distinct unnest(aliases || array['chapati']::text[])
-)
-where user_id is null and name = 'Chapati / roti (whole wheat)';
+-- (no-op)
