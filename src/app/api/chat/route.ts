@@ -76,9 +76,17 @@ export async function POST(request: NextRequest) {
     ? 'question'
     : await classifyMealIntent(user.id, message)
   if (intent === 'meal_log') {
-    const assembled = await assembleMeal(user.id, message)
+    // Assemble can fail transiently on the FIRST call (cold start / Gemini free-tier
+    // RPM) — a manual re-send reliably works, so retry once automatically (after a
+    // 1s pause to let a rate-limit window clear) before giving up.
+    let assembled = await assembleMeal(user.id, message)
     if (!assembled.ok) {
-      // Classifier said "meal" but we couldn't structure it — calm, honest reply.
+      console.warn('chat: assembleMeal failed on first attempt, retrying')
+      await new Promise((r) => setTimeout(r, 1000))
+      assembled = await assembleMeal(user.id, message)
+    }
+    if (!assembled.ok) {
+      // Both attempts failed — calm, honest reply.
       return dataStreamTextResponse(
         "I caught that you ate something, but couldn't quite read the foods — mind rephrasing what you had?",
       )
