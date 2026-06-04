@@ -19,6 +19,7 @@ export interface MealProposalItem {
   kcal_min: number | null
   kcal_typical: number | null
   kcal_max: number | null
+  protein_g: number | null
   match_method: MatchMethod
   confidence: MealConfidence
 }
@@ -56,6 +57,7 @@ export function buildProposal(
       kcal_min: it.kcal_min,
       kcal_typical: it.kcal_typical,
       kcal_max: it.kcal_max,
+      protein_g: it.protein_g,
       match_method: it.match_method,
       confidence: itemConfidences[i] ?? 'low',
     })),

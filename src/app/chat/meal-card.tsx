@@ -31,15 +31,21 @@ function ConfidenceDot({ c }: { c: Confidence }) {
 /** Inline form for teaching/editing one item's food. */
 function TeachForm({
   initialName,
+  initialProtein = '',
+  initialCalories = '',
+  initialGrams = '',
   onSave,
 }: {
   initialName: string
+  initialProtein?: string
+  initialCalories?: string
+  initialGrams?: string
   onSave: (input: TeachFormInput) => Promise<boolean>
 }) {
   const [name, setName] = useState(initialName)
-  const [protein, setProtein] = useState('')
-  const [calories, setCalories] = useState('')
-  const [grams, setGrams] = useState('')
+  const [protein, setProtein] = useState(initialProtein)
+  const [calories, setCalories] = useState(initialCalories)
+  const [grams, setGrams] = useState(initialGrams)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -192,7 +198,18 @@ function ItemRow({
           ) : null}
         </div>
       </div>
-      {isEditing ? <TeachForm initialName={baseName} onSave={onSave} /> : null}
+      {isEditing ? (
+        <TeachForm
+          initialName={baseName}
+          // For an AI-estimated item, pre-fill the estimate so the user can just
+          // tweak + Save. serving = the item's total grams; protein/calories are the
+          // totals for that serving (so per-100g re-derives to the same estimate).
+          initialProtein={isEstimated && item.protein_g != null ? String(item.protein_g) : ''}
+          initialCalories={isEstimated && item.kcal_typical != null ? String(item.kcal_typical) : ''}
+          initialGrams={isEstimated ? String(item.grams_used ?? 100) : ''}
+          onSave={onSave}
+        />
+      ) : null}
     </li>
   )
 }

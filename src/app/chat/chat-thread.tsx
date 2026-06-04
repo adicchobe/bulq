@@ -198,7 +198,7 @@ export function ChatThread({
             value={input}
             onChange={handleInputChange}
             placeholder={listening ? 'Listening…' : 'Message Bulq…'}
-            className="flex-1 rounded-xl border border-black/[.12] bg-transparent px-4 py-3 text-base outline-none transition-colors focus:border-black/40 dark:border-white/[.15] dark:focus:border-white/40"
+            className="min-w-0 flex-1 rounded-xl border border-black/[.12] bg-transparent px-4 py-3 text-base outline-none transition-colors focus:border-black/40 dark:border-white/[.15] dark:focus:border-white/40"
           />
           {voiceSupported ? (
             <button
@@ -206,7 +206,7 @@ export function ChatThread({
               onClick={toggleListening}
               aria-label={listening ? 'Stop voice input' : 'Start voice input'}
               aria-pressed={listening}
-              className={`rounded-xl border px-3 py-3 text-base transition-colors ${
+              className={`inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border transition-colors ${
                 listening
                   ? 'animate-pulse border-red-400 bg-red-500/10 text-red-500'
                   : 'border-black/[.12] text-black/55 hover:bg-black/[.04] dark:border-white/[.15] dark:text-white/55 dark:hover:bg-white/[.06]'
@@ -238,7 +238,7 @@ export function ChatThread({
           <button
             type="submit"
             disabled={isLoading || input.trim().length === 0}
-            className="rounded-xl bg-[var(--foreground)] px-4 py-3 text-base font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="min-h-[44px] shrink-0 rounded-xl bg-[var(--foreground)] px-4 py-3 text-base font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {isLoading ? '…' : 'Send'}
           </button>
