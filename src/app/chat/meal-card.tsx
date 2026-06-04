@@ -201,12 +201,14 @@ function ItemRow({
       {isEditing ? (
         <TeachForm
           initialName={baseName}
-          // For an AI-estimated item, pre-fill the estimate so the user can just
-          // tweak + Save. serving = the item's total grams; protein/calories are the
-          // totals for that serving (so per-100g re-derives to the same estimate).
-          initialProtein={isEstimated && item.protein_g != null ? String(item.protein_g) : ''}
-          initialCalories={isEstimated && item.kcal_typical != null ? String(item.kcal_typical) : ''}
-          initialGrams={isEstimated ? String(item.grams_used ?? 100) : ''}
+          // Pre-fill from the item's actual values whenever present — works for AI
+          // estimates, re-matched derived foods, AND editing a known food. serving =
+          // the item's total grams; protein/calories are the totals for that serving
+          // (so per-100g re-derives correctly). `!= null` so a real 0 shows as "0",
+          // not blank. Truly-unknown items (all null) stay blank → placeholders.
+          initialProtein={item.protein_g != null ? String(item.protein_g) : ''}
+          initialCalories={item.kcal_typical != null ? String(item.kcal_typical) : ''}
+          initialGrams={item.grams_used != null ? String(item.grams_used) : ''}
           onSave={onSave}
         />
       ) : null}
