@@ -19,6 +19,7 @@ import {
 import { insertMeal } from '@/lib/db/meals'
 import {
   classifyMealIntent,
+  isObviousQuestion,
   assembleMeal,
   buildProposal,
   getTodaySummary,
@@ -61,7 +62,18 @@ export async function POST(request: NextRequest) {
   // Intent gate: a meal log gets the propose-a-meal path; everything else falls
   // through to the existing Q&A streaming flow (unchanged). classifyMealIntent is
   // fail-safe → 'question' on any error.
-  const intent = await classifyMealIntent(user.id, message)
+  //
+  // Fast-path: an OBVIOUS question skips the intent_detect LLM call entirely. This
+  // is SAFE BY CONSTRUCTION — it can ONLY route to the question path, never to
+  // meal_log, so it can never produce a phantom meal card. That mirrors intent.ts's
+  // deliberate "default to 'question' on ambiguity" rule: a meal phrased as a
+  // question is a recoverable miss (the user just gets a normal reply), whereas a
+  // spurious card is jarring. We never fast-path TO meal_log for the same reason —
+  // food statements, bare lists ("rice dal sabzi"), and ambiguous text still go
+  // through the classifier.
+  const intent = isObviousQuestion(message)
+    ? 'question'
+    : await classifyMealIntent(user.id, message)
   if (intent === 'meal_log') {
     const assembled = await assembleMeal(user.id, message)
     if (!assembled.ok) {
