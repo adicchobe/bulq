@@ -21,6 +21,7 @@ import {
   classifyMealIntent,
   isObviousQuestion,
   assembleMeal,
+  estimateUnknownFoods,
   buildProposal,
   getTodaySummary,
   istNowLabel,
@@ -82,6 +83,11 @@ export async function POST(request: NextRequest) {
         "I caught that you ate something, but couldn't quite read the foods — mind rephrasing what you had?",
       )
     }
+
+    // Auto-estimate any unmatched foods so the card isn't blank for them. MUST run
+    // BEFORE insertMeal so the stored totals + the proposal reflect the estimates.
+    // Fail-safe: on error the items stay 'unknown' (no card numbers for them).
+    assembled.mealInput.items = await estimateUnknownFoods(assembled.mealInput.items, user.id)
 
     let mealRow
     try {

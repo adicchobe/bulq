@@ -101,6 +101,11 @@ export interface UserFoodInput {
   proteinPerServing: number
   kcalPerServing?: number
   servingGrams?: number
+  /** Override source_type (default 'user'). AI-estimated foods use 'derived'. */
+  sourceType?: FoodSourceType
+  /** Explicit per-100g kcal band, overriding the protein-derived one — used for
+   *  AI estimates that carry their own (wide) uncertainty band. */
+  kcalBand?: { min: number; typical: number; max: number }
 }
 
 /**
@@ -150,7 +155,14 @@ function deriveFoodNotes(input: UserFoodInput): string | null {
  * user_id = auth.uid(); we stamp it here for clarity (belt-and-suspenders).
  */
 export async function createUserFood(userId: string, input: UserFoodInput): Promise<FoodRow> {
-  const { protein_g, kcal_min, kcal_typical, kcal_max } = deriveFoodMacros(input)
+  const derived = deriveFoodMacros(input)
+  // An explicit kcalBand (e.g. an AI estimate's wide band) overrides the
+  // protein-derived band; protein_g still comes from the input.
+  const kcal = input.kcalBand ?? {
+    min: derived.kcal_min,
+    typical: derived.kcal_typical,
+    max: derived.kcal_max,
+  }
 
   const supabase = createClient()
   const { data, error } = await supabase
@@ -162,14 +174,14 @@ export async function createUserFood(userId: string, input: UserFoodInput): Prom
       category: 'composite',
       state: 'cooked',
       variance_class: 'composite',
-      kcal_typical,
-      kcal_min,
-      kcal_max,
-      protein_g,
+      kcal_typical: kcal.typical,
+      kcal_min: kcal.min,
+      kcal_max: kcal.max,
+      protein_g: derived.protein_g,
       fat_g: 0,
       carb_g: 0,
       fiber_g: 0,
-      source_type: 'user',
+      source_type: input.sourceType ?? 'user',
       notes: deriveFoodNotes(input),
     })
     .select()

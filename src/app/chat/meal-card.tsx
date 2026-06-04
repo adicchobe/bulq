@@ -137,7 +137,10 @@ function ItemRow({
   onToggleEdit: () => void
   onSave: (input: TeachFormInput) => Promise<boolean>
 }) {
-  const baseName = item.matched_food_name ?? item.food_name_raw
+  // Estimated items carry a "(estimated)" suffix on matched_food_name — strip it
+  // from the display name (the "AI estimate" label below conveys it instead).
+  const isEstimated = (item.matched_food_name ?? '').includes('(estimated)')
+  const baseName = (item.matched_food_name ?? item.food_name_raw).replace(/\s*\(estimated\)$/, '')
   const displayName = taughtInput?.name ?? baseName
   const unitWord = item.unit_key ? item.unit_key.split('_')[0] : null
   const isUnknown = item.match_method === 'unknown' || item.kcal_min === null
@@ -163,12 +166,17 @@ function ItemRow({
               couldn&apos;t estimate this one precisely
             </p>
           ) : (
-            <p className="text-xs tabular-nums text-black/50 dark:text-white/50">
-              {item.quantity}
-              {unitWord ? ` ${unitWord}` : ''}
-              {item.grams_used != null ? ` · ≈${kcal(item.grams_used)}g` : ''} · ≈
-              {kcal(item.kcal_min as number)}–{kcal(item.kcal_max as number)} kcal
-            </p>
+            <>
+              <p className="text-xs tabular-nums text-black/50 dark:text-white/50">
+                {item.quantity}
+                {unitWord ? ` ${unitWord}` : ''}
+                {item.grams_used != null ? ` · ≈${kcal(item.grams_used)}g` : ''} · ≈
+                {kcal(item.kcal_min as number)}–{kcal(item.kcal_max as number)} kcal
+              </p>
+              {isEstimated ? (
+                <p className="text-[11px] text-black/40 dark:text-white/40">AI estimate</p>
+              ) : null}
+            </>
           )}
         </div>
         <div className="mt-1 flex shrink-0 items-center gap-2">

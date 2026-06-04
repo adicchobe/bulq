@@ -13,6 +13,7 @@ export {
 } from './assemble'
 export type { MealAssembly } from './assemble'
 export { classifyMealIntent, extractIntent, isObviousQuestion } from './intent'
+export { estimateUnknownFoods, parseEstimates } from './estimate'
 export type { MealIntent } from './intent'
 export { buildProposal } from './proposal'
 export type { MealProposal, MealProposalItem } from './proposal'
