@@ -143,6 +143,10 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
       temperature: options.temperature,
       maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
       maxRetries: 2, // SDK built-in exponential-backoff retry for transient errors
+      // Agentic tool-calling (undefined when not requested → unchanged behavior).
+      tools: options.tools,
+      toolChoice: options.toolChoice,
+      maxSteps: options.maxSteps,
     })
 
   const logFailure = async (
@@ -199,6 +203,17 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
     })
   }
 
+  // Surface any tool calls from the final result (mapped to our shape). Undefined
+  // when there were none — keeps tool-free responses identical.
+  const toolCalls =
+    result.toolCalls && result.toolCalls.length > 0
+      ? result.toolCalls.map((tc) => ({
+          id: tc.toolCallId,
+          name: tc.toolName,
+          arguments: tc.args as Record<string, unknown>,
+        }))
+      : undefined
+
   return {
     text: result.text,
     provider: target.provider,
@@ -209,6 +224,7 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
       completionTokens: result.usage.completionTokens,
       totalTokens: result.usage.totalTokens,
     },
+    toolCalls,
   }
 }
 
@@ -283,6 +299,10 @@ export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
       temperature: options.temperature,
       maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
       maxRetries: 2,
+      // Agentic tool-calling (undefined when not requested → unchanged behavior).
+      tools: options.tools,
+      toolChoice: options.toolChoice,
+      maxSteps: options.maxSteps,
       onFinish: (event) => handleFinish(event, target, failedOver),
     })
 

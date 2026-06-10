@@ -5,10 +5,8 @@ import { createClient } from '@/lib/db/server'
 import { llmStream, checkResponse, type Message } from '@/lib/ai'
 import { logResponseFlags } from '@/lib/db/response-flags'
 import { dataStreamTextResponse, dataStreamMessageResponse } from '@/lib/ai/data-stream'
-import { buildChatSystemPrompt } from '@/lib/ai/system-prompt'
-import { searchKnowledge, type ChunkResult } from '@/lib/rag/search'
-import { getMatchableFoods } from '@/lib/db/foods'
-import type { AvailableFood } from '@/lib/ai/system-prompt'
+import { buildAgentSystemPrompt } from '@/lib/ai/system-prompt'
+import { createAgentTools } from '@/lib/ai/agent-tools'
 import { getProfile, profileToNutritionProfile } from '@/lib/db/profiles'
 import { computeNutritionTargets } from '@/lib/nutrition'
 import {
@@ -23,9 +21,7 @@ import {
   assembleMeal,
   estimateUnknownFoods,
   buildProposal,
-  getTodaySummary,
   istNowLabel,
-  type TodaySummary,
 } from '@/lib/meals'
 
 const BodySchema = z.object({
@@ -124,7 +120,10 @@ export async function POST(request: NextRequest) {
     return dataStreamMessageResponse(MEAL_ACK, proposal as unknown as JSONValue)
   }
 
-  // ---- Q&A path (unchanged) ------------------------------------------------
+  // ---- Q&A path — AGENTIC (Phase 1) ----------------------------------------
+  // The model now fetches day-state, the sourced library, and foods on demand via
+  // tools (createAgentTools), instead of us pre-stuffing them into the prompt. We
+  // still pass STATIC context (profile + targets) the agent always needs.
   // Server is the source of truth for history — don't trust the client.
   const recent = await getRecentMessages(conversationId, 15)
   const history: Message[] = recent
@@ -136,46 +135,14 @@ export async function POST(request: NextRequest) {
     ? computeNutritionTargets(profileToNutritionProfile(profile))
     : null
 
-  // Day-state (today, IST) — fail-safe: a summary read failure must not break Q&A,
-  // so on error we omit the day section rather than 500.
-  let today: TodaySummary | null = null
-  try {
-    today = await getTodaySummary(user.id)
-  } catch (err) {
-    console.error('chat: getTodaySummary failed (day-state omitted)', err)
-  }
-
-  // Sourced retrieval (RAG, 3.5). Fail-safe: a retrieval failure must NEVER break
-  // Q&A, so on error we fall back to an empty list → the prompt behaves exactly as
-  // before (no citations, no crash). Embeds the user's latest message.
-  let chunks: ChunkResult[] = []
-  try {
-    chunks = await searchKnowledge(message)
-  } catch (err) {
-    console.error('chat: searchKnowledge failed (RAG context omitted)', err)
-  }
-
-  // Available foods (4.4) — real per-100g numbers the model may suggest from.
-  // Fail-safe like the RAG fetch: a read error just omits the section, never 500s.
-  let availableFoods: AvailableFood[] = []
-  try {
-    const foods = await getMatchableFoods(user.id)
-    availableFoods = foods.map((f) => ({
-      name: f.name,
-      kcal_typical: f.kcal_typical,
-      protein_g: f.protein_g,
-      category: f.category,
-    }))
-  } catch (err) {
-    console.error('chat: getMatchableFoods failed (food suggestions omitted)', err)
-  }
-
   const nowIst = istNowLabel(new Date())
-  const system = buildChatSystemPrompt(profile, targets, today, nowIst, chunks, availableFoods)
+  const system = buildAgentSystemPrompt(profile, targets, nowIst)
 
-  // The nutrition numbers this reply is ALLOWED to state — exactly what the prompt
-  // exposed for this turn (targets incl. range/maintenance/BMR + today's consumed
-  // band + remaining range). Anything else in a nutrition context is "ungrounded".
+  // WATCH (2.7) can only pre-know the STATIC target numbers now — day-state, food,
+  // and suggested numbers are fetched inside tool calls the route never sees, so
+  // they'll show as ungrounded in the log. WATCH is log-only, so this is acceptable
+  // noise, not a user-facing regression. (A future onStepFinish hook could capture
+  // tool-result numbers + cited sources to tighten this.)
   const allowedNutritionNumbers: number[] = []
   if (targets) {
     allowedNutritionNumbers.push(
@@ -187,23 +154,6 @@ export async function POST(request: NextRequest) {
       targets.bmr,
     )
   }
-  if (today) {
-    const c = today.consumed
-    allowedNutritionNumbers.push(
-      c.kcal_min,
-      c.kcal_typical,
-      c.kcal_max,
-      c.protein_g,
-      today.target.kcal - c.kcal_max, // remaining low
-      today.target.kcal - c.kcal_min, // remaining high
-      today.remaining.protein_g,
-    )
-  }
-  // 4.4: the real per-100g food numbers the prompt exposed — so a meal suggestion
-  // that quotes them isn't flagged as ungrounded by the WATCH checker.
-  for (const f of availableFoods) {
-    allowedNutritionNumbers.push(f.kcal_typical, f.protein_g)
-  }
 
   try {
     const result = await llmStream({
@@ -211,10 +161,13 @@ export async function POST(request: NextRequest) {
       messages: history,
       userId: user.id,
       operation: 'chat',
-      // R11: 2048 still truncated chat replies once Gemini's hidden thinking
-      // tokens were subtracted. 4096 gives a normal conversational reply ample
-      // room to finish (finishReason 'stop', not 'length').
+      // R11: 4096 leaves a normal reply ample room to finish past Gemini's hidden
+      // thinking tokens (finishReason 'stop', not 'length').
       maxTokens: 4096,
+      // Agentic: bind the tools to this user; cap the loop at 3 steps (tool-call →
+      // result → answer) so it can't run away.
+      tools: createAgentTools(user.id),
+      maxSteps: 3,
       onFinish: async ({ text, finishReason, usage, model }) => {
         await insertMessage({
           conversationId,
@@ -234,8 +187,9 @@ export async function POST(request: NextRequest) {
             allowedNutritionNumbers,
             nowIst,
             path: 'question' as const,
-            // 3.5c: the sources this reply was allowed to cite (empty → check skipped).
-            retrievedSourceTitles: chunks.map((c) => c.source_title),
+            // Sources are now retrieved inside search_knowledge (not in route scope),
+            // so we skip the fabricated-source check rather than false-flag every cite.
+            retrievedSourceTitles: [],
           }
           const { violations } = checkResponse(text, facts)
           if (violations.length > 0) {

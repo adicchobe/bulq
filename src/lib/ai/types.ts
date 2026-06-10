@@ -1,3 +1,5 @@
+import type { CoreTool, CoreToolChoice } from 'ai'
+
 export type LLMPriority = 'standard' | 'high_stakes'
 
 export type LLMProvider = 'gemini' | 'anthropic'
@@ -25,6 +27,14 @@ export interface LLMCallOptions {
   userId?: string
   /** Log label for the call: 'chat' | 'parse' | 'reason' | 'compose'. */
   operation?: string
+  /**
+   * Agentic tool-calling. When `tools` is set, the SDK runs an automatic
+   * tool-execution loop (up to `maxSteps`). Omit all three for unchanged,
+   * tool-free behavior. Shared by llmCall (generateText) and llmStream (streamText).
+   */
+  tools?: Record<string, CoreTool>
+  toolChoice?: CoreToolChoice<Record<string, CoreTool>>
+  maxSteps?: number
 }
 
 export interface LLMUsage {
