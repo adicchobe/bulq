@@ -44,6 +44,19 @@ const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
+/**
+ * Effective maxTokens. For GEMINI, DEFAULT_MAX_TOKENS is a HARD FLOOR, not just a
+ * default: Gemini 2.5's hidden "thinking" tokens count against maxTokens, so a cap
+ * below ~2048 can be fully consumed by thinking and truncate the visible output
+ * (the R11 bug — it bit intent_detect, meal_estimate, and meal_parse in turn). A
+ * caller may go ABOVE the floor (e.g. chat at 4096) but never below it. Anthropic
+ * has no such hidden-thinking tax, so its budget is used as requested.
+ */
+function effectiveMaxTokens(provider: LLMProvider, requested?: number): number {
+  const base = requested ?? DEFAULT_MAX_TOKENS
+  return provider === 'gemini' ? Math.max(base, DEFAULT_MAX_TOKENS) : base
+}
+
 function selectProvider(priority: LLMCallOptions['priority']): LLMProvider {
   return priority === 'high_stakes' ? 'anthropic' : 'gemini'
 }
@@ -141,7 +154,7 @@ export async function llmCall(options: LLMCallOptions): Promise<LLMResponse> {
       messages: toCoreMessages(options.messages),
       system: options.system,
       temperature: options.temperature,
-      maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+      maxTokens: effectiveMaxTokens(target.provider, options.maxTokens),
       maxRetries: 2, // SDK built-in exponential-backoff retry for transient errors
       // Agentic tool-calling (undefined when not requested → unchanged behavior).
       tools: options.tools,
@@ -297,7 +310,7 @@ export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
       messages: toCoreMessages(options.messages),
       system: options.system,
       temperature: options.temperature,
-      maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+      maxTokens: effectiveMaxTokens(target.provider, options.maxTokens),
       maxRetries: 2,
       // Agentic tool-calling (undefined when not requested → unchanged behavior).
       tools: options.tools,

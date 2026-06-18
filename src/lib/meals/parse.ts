@@ -69,7 +69,11 @@ export async function parseMealText(
       priority: 'standard',
       userId,
       operation: 'meal_parse',
-      maxTokens: 1024,
+      // 2048 matches the adapter's Gemini thinking-token floor. At 1024, a large
+      // meal (8+ items) overruns the budget once hidden thinking tokens are
+      // subtracted → truncated JSON → parse_failed (R11). The adapter now enforces
+      // this as a hard floor for Gemini, but we set it explicitly here too.
+      maxTokens: 2048,
       temperature: 0, // deterministic structured output
     })
     responseText = res.text
