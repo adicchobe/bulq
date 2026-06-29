@@ -16,9 +16,9 @@ import {
 } from '@/lib/db/chat'
 import { insertMeal } from '@/lib/db/meals'
 import {
-  classifyMealIntent,
+  classifyAndParse,
   isObviousQuestion,
-  assembleMeal,
+  assembleParsedMeal,
   estimateUnknownFoods,
   buildProposal,
   istNowLabel,
@@ -57,32 +57,29 @@ export async function POST(request: NextRequest) {
   })
 
   // Intent gate: a meal log gets the propose-a-meal path; everything else falls
-  // through to the existing Q&A streaming flow (unchanged). classifyMealIntent is
-  // fail-safe → 'question' on any error.
+  // through to the agentic Q&A flow.
   //
-  // Fast-path: an OBVIOUS question skips the intent_detect LLM call entirely. This
-  // is SAFE BY CONSTRUCTION — it can ONLY route to the question path, never to
-  // meal_log, so it can never produce a phantom meal card. That mirrors intent.ts's
-  // deliberate "default to 'question' on ambiguity" rule: a meal phrased as a
-  // question is a recoverable miss (the user just gets a normal reply), whereas a
-  // spurious card is jarring. We never fast-path TO meal_log for the same reason —
-  // food statements, bare lists ("rice dal sabzi"), and ambiguous text still go
-  // through the classifier.
-  const intent = isObviousQuestion(message)
-    ? 'question'
-    : await classifyMealIntent(user.id, message)
-  if (intent === 'meal_log') {
-    // Assemble can fail transiently on the FIRST call (cold start / Gemini free-tier
-    // RPM) — a manual re-send reliably works, so retry once automatically (after a
-    // 1s pause to let a rate-limit window clear) before giving up.
-    let assembled = await assembleMeal(user.id, message)
+  // Sprint 6: ONE merged Gemini call (classifyAndParse) now returns BOTH the
+  // intent AND the parsed meal — replacing the old sequential intent_detect +
+  // meal_parse (2 calls → 1, the meal-turn latency win). It retries internally on
+  // a transient/truncated failure and is fail-safe → { intent: 'question' }.
+  //
+  // Fast-path: an OBVIOUS question skips the LLM call entirely. SAFE BY
+  // CONSTRUCTION — it can ONLY route to question, never meal_log, so no phantom
+  // card. Food statements, bare lists ("rice dal sabzi"), and ambiguous text still
+  // go through classifyAndParse, whose meal_log result requires valid JSON + real
+  // items (deriveClassifyParse) — otherwise it too resolves to question.
+  const classified = isObviousQuestion(message)
+    ? ({ intent: 'question' } as const)
+    : await classifyAndParse(user.id, message)
+
+  if (classified.intent === 'meal_log') {
+    // classifyAndParse already parsed the items (with its own retry); do ONLY the
+    // pure match/portion/confidence assembly — no second LLM call.
+    const assembled = await assembleParsedMeal(user.id, classified.meal, message)
     if (!assembled.ok) {
-      console.warn('chat: assembleMeal failed on first attempt, retrying')
-      await new Promise((r) => setTimeout(r, 1000))
-      assembled = await assembleMeal(user.id, message)
-    }
-    if (!assembled.ok) {
-      // Both attempts failed — calm, honest reply.
+      // The pure assembly doesn't make an LLM call, so this is unexpected (a DB
+      // read issue) rather than a parse miss — calm, honest reply either way.
       return dataStreamTextResponse(
         "I caught that you ate something, but couldn't quite read the foods — mind rephrasing what you had?",
       )

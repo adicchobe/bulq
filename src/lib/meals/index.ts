@@ -14,6 +14,8 @@ export {
 } from './assemble'
 export type { MealAssembly } from './assemble'
 export { classifyMealIntent, extractIntent, isObviousQuestion } from './intent'
+export { classifyAndParse, deriveClassifyParse } from './classify-parse'
+export type { ClassifyParseResult } from './classify-parse'
 export { estimateUnknownFoods, parseEstimates } from './estimate'
 export type { MealIntent } from './intent'
 export { buildProposal } from './proposal'
