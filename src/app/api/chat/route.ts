@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import type { JSONValue } from 'ai'
 import { createClient } from '@/lib/db/server'
-import { llmStream, checkResponse, type Message } from '@/lib/ai'
+import { llmStream, checkResponse, logChatStreamError, type Message } from '@/lib/ai'
 import { logResponseFlags } from '@/lib/db/response-flags'
 import { dataStreamTextResponse, dataStreamMessageResponse } from '@/lib/ai/data-stream'
 import { buildAgentSystemPrompt } from '@/lib/ai/system-prompt'
@@ -205,7 +205,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return result.toDataStreamResponse()
+    // getErrorMessage fires ONLY on a mid-stream error (onFinish never ran). It
+    // logs the otherwise-invisible failure (best-effort) and returns the calm
+    // fallback so the client shows that text instead of going blank. We do NOT
+    // persist a fallback assistant turn here — can't guarantee onFinish and
+    // getErrorMessage are mutually exclusive on one turn, so we avoid a possible
+    // duplicate and accept that this turn vanishes on reload.
+    return result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        void logChatStreamError(user.id, 'chat', error)
+        return FALLBACK_MESSAGE
+      },
+    })
   } catch (err) {
     // Both providers failed (or a permanent error). llmStream already logged the
     // failure(s) to api_usage_log. Return a calm reply instead of a 500 / silent

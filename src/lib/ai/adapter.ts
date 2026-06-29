@@ -359,4 +359,41 @@ export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
   }
 }
 
+/**
+ * Best-effort logging for a mid-stream error on a STREAMING call. streamText has
+ * no onError on this SDK version and onFinish does NOT fire when the stream
+ * hard-errors, so the error is otherwise invisible (no api_usage_log row). Call
+ * this from toDataStreamResponse's getErrorMessage to close that gap. The agent/
+ * chat path's streaming primary is always Gemini (standard priority; failover
+ * only happens at setup, before the response is returned), so we log that.
+ *
+ * Fire-and-forget by design (getErrorMessage is synchronous): logApiUsage already
+ * swallows its own failures, so a missed write never throws. NOTE: best-effort —
+ * the serverless function may freeze after the response flushes before this lands.
+ */
+export async function logChatStreamError(
+  userId: string,
+  operation: string,
+  error: unknown,
+): Promise<void> {
+  const { errorType } = classifyLlmError(error)
+  console.error(
+    `llmStream: ${operation} stream errored mid-flight (${errorType}):`,
+    error instanceof Error ? error.message : error,
+  )
+  await logApiUsage({
+    userId,
+    provider: 'gemini',
+    model: GEMINI_MODEL,
+    operation,
+    promptTokens: null,
+    completionTokens: null,
+    totalTokens: null,
+    finishReason: 'error',
+    success: false,
+    errorType,
+    failedOver: false,
+  })
+}
+
 export { DEFAULT_MAX_TOKENS }
