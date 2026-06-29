@@ -169,6 +169,15 @@ export function ChatThread({
         {messages.map((m) => {
           const proposal =
             m.role === 'assistant' ? getMealProposal(m.annotations) : null
+          // Guard: never render a BLANK assistant bubble — an assistant message
+          // with empty/whitespace content AND no meal card. This drops the rare
+          // case where a stream yields no visible text. Mid-stream "working" is
+          // shown by the ThinkingIndicator below (not an empty bubble), so an
+          // in-progress response is never hidden — it just shows as "Thinking…"
+          // until its first text arrives, then renders normally.
+          if (m.role === 'assistant' && m.content.trim().length === 0 && !proposal) {
+            return null
+          }
           return (
             <div key={m.id} className="flex flex-col gap-2">
               <MessageBubble role={m.role} content={m.content} />
@@ -186,6 +195,16 @@ export function ChatThread({
             </div>
           )
         })}
+        {/* Working indicator: while a request is in flight AND nothing visible is
+            streaming yet (last turn is the user's, or the assistant turn has no
+            text yet — e.g. during a multi-second tool call). Once assistant text
+            arrives it renders as a normal bubble and this hides. */}
+        {isLoading &&
+        (messages.length === 0 ||
+          messages[messages.length - 1].role === 'user' ||
+          messages[messages.length - 1].content.trim().length === 0) ? (
+          <ThinkingIndicator />
+        ) : null}
         <div ref={bottomRef} />
       </div>
 
@@ -289,6 +308,24 @@ const markdownComponents: Components = {
       {children}
     </blockquote>
   ),
+}
+
+// Subtle "Bulq is working" cue, styled as an assistant bubble. Shown during the
+// gap before the first streamed token (notably multi-second agent tool calls), so
+// the thread is never a blank wait.
+function ThinkingIndicator() {
+  return (
+    <div className="flex justify-start" aria-live="polite">
+      <div className="flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm border border-black/[.08] bg-white/40 px-4 py-2.5 dark:border-white/[.12] dark:bg-white/[.04]">
+        <span className="flex gap-1" aria-hidden>
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/40 [animation-delay:-0.3s] dark:bg-white/40" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/40 [animation-delay:-0.15s] dark:bg-white/40" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-black/40 dark:bg-white/40" />
+        </span>
+        <span className="text-sm text-black/45 dark:text-white/45">Thinking…</span>
+      </div>
+    </div>
+  )
 }
 
 function MessageBubble({ role, content }: { role: string; content: string }) {
