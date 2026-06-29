@@ -30,8 +30,22 @@ export const ParsedItemSchema = z.object({
   unit_raw: z.string().nullable().default(null),
 })
 
+/**
+ * Tolerant items array: DROP elements that fail ParsedItemSchema (so one malformed
+ * item in a large meal doesn't lose the rest), then validate the survivors with the
+ * SAME schema — per-item rules are unchanged, a bad item is dropped, never coerced
+ * through. Non-array input passes through unchanged so z.array still rejects it
+ * (a meal with no items array isn't valid — same as before). If EVERY item is bad
+ * the result is [], which the downstream empty-guards (parseMealText / classifyOutcome)
+ * already turn into 'empty'/'question' — no blank meal card.
+ */
+const TolerantParsedItems = z.preprocess(
+  (v) => (Array.isArray(v) ? v.filter((item) => ParsedItemSchema.safeParse(item).success) : v),
+  z.array(ParsedItemSchema),
+)
+
 export const ParsedMealSchema = z.object({
-  items: z.array(ParsedItemSchema),
+  items: TolerantParsedItems,
   meal_type: z
     .enum(['breakfast', 'lunch', 'dinner', 'snack', 'unknown'])
     .catch('unknown'),
