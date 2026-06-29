@@ -73,6 +73,13 @@ export interface LLMStreamFinish {
   usage: LLMUsage
   provider: LLMProvider
   model: string
+  /**
+   * Every finite numeric value returned by the tools the agent called this turn
+   * (harvested via onStepFinish). Lets the WATCH check treat tool-sourced numbers
+   * as grounded instead of false-positive ungrounded_number flags (#41). Empty for
+   * tool-free streams. Callers that don't tool-call can ignore it.
+   */
+  toolResultNumbers: number[]
 }
 
 export interface LLMStreamCallbacks {

@@ -100,6 +100,22 @@ function toCoreMessages(messages: LLMCallOptions['messages']): CoreMessage[] {
   return messages.map((m): CoreMessage => ({ role: m.role, content: m.content }))
 }
 
+/** Recursively collect every FINITE numeric leaf from a tool result into `into`.
+ *  Used to ground tool-sourced numbers in the WATCH check (#41). */
+function harvestNumbers(value: unknown, into: Set<number>): void {
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) into.add(value)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) harvestNumbers(v, into)
+    return
+  }
+  if (value && typeof value === 'object') {
+    for (const v of Object.values(value as Record<string, unknown>)) harvestNumbers(v, into)
+  }
+}
+
 /**
  * Budget hard-stop (R3): true once lifetime Claude spend has reached 95% of the
  * $4.51 balance. Fail-open via getAnthropicSpendUsd (read failure → 0 → false).
@@ -252,6 +268,12 @@ export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
   const userId = options.userId
   const callerOnFinish = options.onFinish
 
+  // Per-invocation collector: every finite number returned by tools this turn
+  // (filled by onStepFinish below). Surfaced to onFinish as toolResultNumbers so
+  // the WATCH check can treat tool-sourced numbers as grounded (#41). Only the
+  // attempt that actually streams writes to it (failover happens before any step).
+  const toolResultNumbers = new Set<number>()
+
   // Budget hard-stop: downgrade a high-stakes PRIMARY to free Gemini rather than
   // spend more on Claude. (Only reads the budget when the primary is Claude.)
   if (
@@ -300,6 +322,7 @@ export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
         },
         provider: target.provider,
         model: target.modelId,
+        toolResultNumbers: Array.from(toolResultNumbers),
       })
     }
   }
@@ -316,6 +339,14 @@ export async function llmStream(options: LLMCallOptions & LLMStreamCallbacks) {
       tools: options.tools,
       toolChoice: options.toolChoice,
       maxSteps: options.maxSteps,
+      // Harvest tool-result numbers per step (#41). Shared by primary + failover
+      // (both call attempt). Best-effort: if it doesn't fire, those numbers simply
+      // stay flaggable — fails safe toward MORE flagging, never less.
+      onStepFinish: (step) => {
+        for (const tr of step.toolResults) {
+          harvestNumbers((tr as { result?: unknown }).result, toolResultNumbers)
+        }
+      },
       onFinish: (event) => handleFinish(event, target, failedOver),
     })
 

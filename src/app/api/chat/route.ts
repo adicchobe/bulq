@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       // result → answer) so it can't run away.
       tools: createAgentTools(user.id),
       maxSteps: 3,
-      onFinish: async ({ text, finishReason, usage, model }) => {
+      onFinish: async ({ text, finishReason, usage, model, toolResultNumbers }) => {
         await insertMessage({
           conversationId,
           userId: user.id,
@@ -181,7 +181,10 @@ export async function POST(request: NextRequest) {
         // NEVER affect the stream, the reply, or persistence above.
         try {
           const facts = {
-            allowedNutritionNumbers,
+            // Static targets PLUS the numbers tools actually returned this turn
+            // (#41) — so a tool-sourced figure the agent repeats is grounded, while
+            // a genuinely invented number is still flagged.
+            allowedNutritionNumbers: [...allowedNutritionNumbers, ...toolResultNumbers],
             nowIst,
             path: 'question' as const,
             // Sources are now retrieved inside search_knowledge (not in route scope),

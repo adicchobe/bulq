@@ -36,6 +36,39 @@ describe('ungrounded_number', () => {
   })
 })
 
+describe('ungrounded_number with tool-result grounding (#41)', () => {
+  // Realistic agent turn: static targets + numbers harvested from tool results
+  // (e.g. get_day_state consumed=1200, suggest_meals paneer protein=25,
+  // chicken kcal=165). The check is fed these via allowedNutritionNumbers.
+  const allowed = [2936, 467, 1056, 97, 1200, 25, 165]
+  const facts = { allowedNutritionNumbers: allowed, nowIst: null, path: 'question' as const }
+
+  // GROUNDED — the false positives #41 fixes (tool-sourced numbers repeated verbatim).
+  it('does NOT flag a tool-sourced day-state number', () => {
+    expect(types("You've eaten about 1,200 kcal so far today.", facts)).toEqual([])
+  })
+  it('does NOT flag a tool-sourced food protein number', () => {
+    expect(types('Paneer has 25 g protein per 100g.', facts)).toEqual([])
+  })
+  it('absorbs rounding on a tool-sourced number (within ±5%)', () => {
+    expect(types('roughly 1,180 kcal', facts)).toEqual([]) // within ±5% of 1200
+  })
+
+  // STILL FLAGGED — proves grounding tool numbers did NOT blind the check.
+  it('flags an invented number not in targets OR tool results', () => {
+    expect(types("you've eaten 2,500 kcal", facts)).toEqual(['ungrounded_number'])
+  })
+  it('flags an invented protein number', () => {
+    expect(types('this has 80 g protein', facts)).toEqual(['ungrounded_number'])
+  })
+  it('flags a model-COMPUTED number (arithmetic on a tool value)', () => {
+    // 165 (per-100g, allowed) is grounded; 398 (model's 150g math) is not.
+    expect(types('At 165 kcal per 100g, 150g is about 398 kcal.', facts)).toEqual([
+      'ungrounded_number',
+    ])
+  })
+})
+
 describe('invented_time', () => {
   const now = '2026-05-31 1:24 am IST'
 
