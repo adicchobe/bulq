@@ -80,9 +80,47 @@ export type MealAssembly =
   | { ok: false; reason: 'empty' | 'parse_failed' | 'llm_failed' }
 
 /**
+ * The PURE/DB half of assembly: take an ALREADY-PARSED meal and do the match +
+ * portion + confidence work against the foods/units DB. NO LLM call. `rawText` is
+ * the original user message, preserved verbatim into mealInput.raw_text (the
+ * ParsedMeal does not carry it). Reusable by a caller that parses elsewhere
+ * (e.g. a merged classify+parse call) — see Step 2b.
+ */
+export async function assembleParsedMeal(
+  userId: string,
+  parsedMeal: ParsedMeal,
+  rawText: string,
+): Promise<MealAssembly> {
+  const [foods, units] = await Promise.all([
+    getMatchableFoods(userId),
+    getUnits(userId),
+  ])
+
+  const { items, confidence, itemConfidences } = assembleMealItems(
+    parsedMeal,
+    foods,
+    units,
+  )
+
+  const mealInput: MealInput = {
+    raw_text: rawText,
+    meal_type: parsedMeal.meal_type,
+    note: null,
+    confidence,
+    items,
+    // logged_at omitted → DB now()
+  }
+
+  return { ok: true, mealInput, itemConfidences }
+}
+
+/**
  * Orchestrator: text → parse (LLM) → match + build + score (against the foods/
  * units DB) → a proposed MealInput. Does NOT persist — persisting + the confirm
  * UX is the chat-wiring step. Exercised live (no LLM/DB mocking).
+ *
+ * Behavior is unchanged: it parses, then delegates the pure/DB half to
+ * assembleParsedMeal (passing the original text through as raw_text).
  */
 export async function assembleMeal(
   userId: string,
@@ -91,25 +129,5 @@ export async function assembleMeal(
   const parsed = await parseMealText(userId, text)
   if (!parsed.ok) return { ok: false, reason: parsed.reason }
 
-  const [foods, units] = await Promise.all([
-    getMatchableFoods(userId),
-    getUnits(userId),
-  ])
-
-  const { items, confidence, itemConfidences } = assembleMealItems(
-    parsed.meal,
-    foods,
-    units,
-  )
-
-  const mealInput: MealInput = {
-    raw_text: text,
-    meal_type: parsed.meal.meal_type,
-    note: null,
-    confidence,
-    items,
-    // logged_at omitted → DB now()
-  }
-
-  return { ok: true, mealInput, itemConfidences }
+  return assembleParsedMeal(userId, parsed.meal, text)
 }

@@ -7,6 +7,7 @@ export { pickUnitKey, resolveGrams, computeItemMacros, buildMealItem } from './p
 export type { GramsRange, ResolvedPortion, ItemMacros } from './portion'
 export {
   assembleMeal,
+  assembleParsedMeal,
   assembleMealItems,
   computeItemConfidence,
   worstConfidence,
